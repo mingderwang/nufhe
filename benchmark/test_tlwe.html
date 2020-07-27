@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (extras.classList.contains("collapsed")) {
+            expandcollapse.classList.add("expander")
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    sort_column(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+
+        if (key_a == key_b) return 0;
+
+        if (reversed) {
+            return (key_a < key_b ? 1 : -1);
+        } else {
+            return (key_a > key_b ? 1 : -1);
+        }
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>test_tlwe.html</h1>
+    <p>Report generated on 27-Jul-2020 at 10:18:06 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v2.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.9.0", "pytest": "5.4.3"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Linux-4.9.140-tegra-aarch64-with-Ubuntu-18.04-bionic</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"benchmark": "3.2.3", "html": "2.1.1", "metadata": "1.10.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.6.9</td></tr></table>
+    <h2>Summary</h2>
+    <p>3 tests ran in 27.72 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">1 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">2 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_tlwe.py::test_tlwe_extract_lwe_samples[cuda:0:0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7fa589a4a8&gt;<br/><br/>    def test_tlwe_extract_lwe_samples(thread):<br/>    <br/>        shape = (2, 5)<br/>        params = NuFHEParameters().tgsw_params.tlwe_params<br/>    <br/>        mask_size = params.mask_size<br/>        polynomial_degree = params.polynomial_degree<br/>    <br/>        tlwe_a = get_test_array(shape + (mask_size + 1, polynomial_degree), Torus32)<br/>    <br/>        a = numpy.empty(shape + (params.extracted_lweparams.size,), Torus32)<br/>        b = numpy.empty(shape, Torus32)<br/>    <br/>&gt;       tlwe_a_dev = thread.to_device(tlwe_a)<br/><br/>test/test_tlwe.py:80: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:443: in to_device<br/>    arr_device = self.empty_like(arr)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:434: in empty_like<br/>    allocator=allocator)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;reikna.cluda.cuda.Thread object at 0x7fa589a4a8&gt;, shape = (2, 5, 2, 1024)<br/>dtype = dtype(&#x27;int32&#x27;), strides = (40960, 8192, 4096, 4), offset = 0, nbytes = 81920<br/>allocator = &lt;Boost.Python.function object at 0x20e19af0&gt;, base = None, base_data = None<br/><br/>    def array(<br/>            self, shape, dtype, strides=None, offset=0, nbytes=None,<br/>            allocator=None, base=None, base_data=None):<br/>    <br/>        # In PyCUDA, the default allocator is not None, but a default alloc object<br/>        if allocator is None:<br/>            allocator = cuda.mem_alloc<br/>    <br/>        dtype = dtypes.normalize_type(dtype)<br/>        shape = wrap_in_tuple(shape)<br/>        if nbytes is None:<br/>            nbytes = int(min_buffer_size(shape, dtype.itemsize, strides=strides, offset=offset))<br/>    <br/>        if (offset != 0 or strides is not None) and base_data is None and base is None:<br/>&gt;           base_data = allocator(nbytes)<br/><span class="error">E           pycuda._driver.LogicError: cuMemAlloc failed: invalid device context</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:184: LogicError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_tlwe.py::test_tlwe_encrypt_zero[cuda:0:0]</td>
+          <td class="col-duration">24.84</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7fa015b630&gt;<br/><br/>    def test_tlwe_encrypt_zero(thread):<br/>    <br/>        nufhe_params = NuFHEParameters()<br/>        perf_params = PerformanceParameters(nufhe_params).for_device(thread.device_params)<br/>        params = nufhe_params.tgsw_params.tlwe_params<br/>    <br/>        mask_size = params.mask_size<br/>        polynomial_degree = params.polynomial_degree<br/>        noise = params.min_noise<br/>    <br/>        shape = (3, 4, 5)<br/>    <br/>        result_a = numpy.empty(shape + (mask_size + 1, polynomial_degree), Torus32)<br/>        result_cv = numpy.empty(shape, ErrorFloat)<br/>        noises1 = get_test_array(shape + (mask_size, polynomial_degree), Torus32)<br/>        noises2 = get_test_array(shape + (polynomial_degree,), Torus32)<br/>        key = get_test_array((mask_size, polynomial_degree), Int32, (0, 2))<br/>    <br/>        test = TLweEncryptZero(params, shape, noise, perf_params).compile(thread)<br/>        ref = TLweEncryptZeroReference(params, shape, noise, perf_params)<br/>    <br/>        result_a_dev = thread.empty_like(result_a)<br/>        result_cv_dev = thread.empty_like(result_cv)<br/>        noises1_dev = thread.to_device(noises1)<br/>        noises2_dev = thread.to_device(noises2)<br/>        key_dev = thread.to_device(key)<br/>    <br/>        test(result_a_dev, result_cv_dev, key_dev, noises1_dev, noises2_dev)<br/>        ref(result_a, result_cv, key, noises1, noises2)<br/>    <br/>&gt;       result_a_test = result_a_dev.get()<br/><br/>test/test_tlwe.py:127: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:135: in get<br/>    return gpuarray.GPUArray.get(self, *args, **kwds)<br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/gpuarray.py:305: in get<br/>    _memcpy_discontig(ary, self, async_=async_, stream=stream)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>dst = array([-1464790368,         127,   556888720, ...,         127,<br/>       -1922092456,         127], dtype=int32)<br/>src = &lt;[LogicError(&#x27;cuMemcpyDtoH failed: invalid device context&#x27;,) raised in repr()] Array object at 0x7fa01fae10&gt;<br/>async_ = False, stream = None<br/><br/>    def _memcpy_discontig(dst, src, async_=False, stream=None):<br/>        &quot;&quot;&quot;Copy the contents of src into dst.<br/>    <br/>        The two arrays should have the same dtype, shape, and order, but<br/>        not necessarily the same strides. There may be up to _two_<br/>        axes along which either `src` or `dst` is not contiguous.<br/>        &quot;&quot;&quot;<br/>    <br/>        if not isinstance(src, (GPUArray, np.ndarray)):<br/>            raise TypeError(&quot;src must be GPUArray or ndarray&quot;)<br/>        if not isinstance(dst, (GPUArray, np.ndarray)):<br/>            raise TypeError(&quot;dst must be GPUArray or ndarray&quot;)<br/>        if src.shape != dst.shape:<br/>            raise ValueError(&quot;src and dst must be same shape&quot;)<br/>        if src.dtype != dst.dtype:<br/>            raise TypeError(&quot;src and dst must have same dtype&quot;)<br/>    <br/>        # ndarray -&gt; ndarray<br/>        if isinstance(src, np.ndarray) and isinstance(dst, np.ndarray):<br/>            dst[...] = src<br/>            return<br/>    <br/>        if src.flags.forc and dst.flags.forc:<br/>            shape = [src.size]<br/>            src_strides = dst_strides = [src.dtype.itemsize]<br/>        else:<br/>            # put src in Fortran order (which should put dst in Fortran order too)<br/>            # and remove singleton axes<br/>            src_info = sorted(<br/>                    (src.strides[axis], axis)<br/>                    for axis in range(len(src.shape)) if src.shape[axis] &gt; 1)<br/>            axes = [axis for _, axis in src_info]<br/>            shape = [src.shape[axis] for axis in axes]<br/>            src_strides = [src.strides[axis] for axis in axes]<br/>            dst_strides = [dst.strides[axis] for axis in axes]<br/>    <br/>            # copy functions require contiguity in minor axis, so add new axis if needed<br/>            if (len(shape) == 0<br/>                    or src_strides[0] != src.dtype.itemsize<br/>                    or dst_strides[0] != dst.dtype.itemsize):<br/>                shape[0:0] = [1]<br/>                src_strides[0:0] = [0]<br/>                dst_strides[0:0] = [0]<br/>                axes[0:0] = [np.newaxis]<br/>    <br/>            # collapse contiguous dimensions<br/>            # and check that dst is in same order as src<br/>            i = 1<br/>            while i &lt; len(shape):<br/>                if dst_strides[i] &lt; dst_strides[i-1]:<br/>                    raise ValueError(&quot;src and dst must have same order&quot;)<br/>                if (src_strides[i-1] * shape[i-1] == src_strides[i] and<br/>                        dst_strides[i-1] * shape[i-1] == dst_strides[i]):<br/>                    shape[i-1:i+1] = [shape[i-1] * shape[i]]<br/>                    del src_strides[i]<br/>                    del dst_strides[i]<br/>                    del axes[i]<br/>                else:<br/>                    i += 1<br/>    <br/>        if len(shape) &lt;= 1:<br/>            if isinstance(src, GPUArray):<br/>                if isinstance(dst, GPUArray):<br/>                    if async_:<br/>                        drv.memcpy_dtod_async(<br/>                                dst.gpudata, src.gpudata, src.nbytes, stream=stream)<br/>                    else:<br/>                        drv.memcpy_dtod(dst.gpudata, src.gpudata, src.nbytes)<br/>                else:<br/>                    # The arrays might be contiguous in the sense of<br/>                    # having no gaps, but the axes could be transposed<br/>                    # so that the order is neither Fortran or C.<br/>                    # So, we attempt to get a contiguous view of dst.<br/>                    dst = _as_strided(<br/>                            dst, shape=(dst.size,), strides=(dst.dtype.itemsize,))<br/>                    if async_:<br/>                        drv.memcpy_dtoh_async(dst, src.gpudata, stream=stream)<br/>                    else:<br/>&gt;                       drv.memcpy_dtoh(dst, src.gpudata)<br/><span class="error">E                       pycuda._driver.LogicError: cuMemcpyDtoH failed: invalid device context</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/gpuarray.py:1309: LogicError<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_tlwe.py::test_tlwe_noiseless_trivial[cuda:0:0]</td>
+          <td class="col-duration">1.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody></table></body></html>

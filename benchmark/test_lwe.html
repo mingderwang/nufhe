@@ -1,0 +1,2266 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function find_all(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sort_column(elem) {
+    toggle_sort_states(elem);
+    var colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    var key;
+    if (elem.classList.contains('numeric')) {
+        key = key_num;
+    } else if (elem.classList.contains('result')) {
+        key = key_result;
+    } else {
+        key = key_alpha;
+    }
+    sort_table(elem, key(colIndex));
+}
+
+function show_all_extras() {
+    find_all('.col-result').forEach(show_extras);
+}
+
+function hide_all_extras() {
+    find_all('.col-result').forEach(hide_extras);
+}
+
+function show_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.remove("collapsed");
+    expandcollapse.classList.remove("expander");
+    expandcollapse.classList.add("collapser");
+}
+
+function hide_extras(colresult_elem) {
+    var extras = colresult_elem.parentNode.nextElementSibling;
+    var expandcollapse = colresult_elem.firstElementChild;
+    extras.classList.add("collapsed");
+    expandcollapse.classList.remove("collapser");
+    expandcollapse.classList.add("expander");
+}
+
+function show_filters() {
+    var filter_items = document.getElementsByClassName('filter');
+    for (var i = 0; i < filter_items.length; i++)
+        filter_items[i].hidden = false;
+}
+
+function add_collapse() {
+    // Add links for show/hide all
+    var resulttable = find('table#results-table');
+    var showhideall = document.createElement("p");
+    showhideall.innerHTML = '<a href="javascript:show_all_extras()">Show all details</a> / ' +
+                            '<a href="javascript:hide_all_extras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    find_all('.col-result').forEach(function(elem) {
+        var collapsed = get_query_parameter('collapsed') || 'Passed';
+        var extras = elem.parentNode.nextElementSibling;
+        var expandcollapse = document.createElement("span");
+        if (extras.classList.contains("collapsed")) {
+            expandcollapse.classList.add("expander")
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add("collapsed");
+            expandcollapse.classList.add("expander");
+        } else {
+            expandcollapse.classList.add("collapser");
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener("click", function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains("collapsed")) {
+                show_extras(event.currentTarget);
+            } else {
+                hide_extras(event.currentTarget);
+            }
+        });
+    })
+}
+
+function get_query_parameter(name) {
+    var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () {
+    reset_sort_headers();
+
+    add_collapse();
+
+    show_filters();
+
+    sort_column(find('.initial-sort'));
+
+    find_all('.sortable').forEach(function(elem) {
+        elem.addEventListener("click",
+                              function(event) {
+                                  sort_column(elem);
+                              }, false)
+    });
+
+};
+
+function sort_table(clicked, key_func) {
+    var rows = find_all('.results-table-row');
+    var reversed = !clicked.classList.contains('asc');
+    var sorted_rows = sort(rows, key_func, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    var thead = document.getElementById("results-table-head");
+    document.getElementById('results-table').remove();
+    var parent = document.createElement("table");
+    parent.id = "results-table";
+    parent.appendChild(thead);
+    sorted_rows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName("BODY")[0].appendChild(parent);
+}
+
+function sort(items, key_func, reversed) {
+    var sort_array = items.map(function(item, i) {
+        return [key_func(item), i];
+    });
+
+    sort_array.sort(function(a, b) {
+        var key_a = a[0];
+        var key_b = b[0];
+
+        if (key_a == key_b) return 0;
+
+        if (reversed) {
+            return (key_a < key_b ? 1 : -1);
+        } else {
+            return (key_a > key_b ? 1 : -1);
+        }
+    });
+
+    return sort_array.map(function(item) {
+        var index = item[1];
+        return items[index];
+    });
+}
+
+function key_alpha(col_index) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[col_index].firstChild.data.toLowerCase();
+    };
+}
+
+function key_num(col_index) {
+    return function(elem) {
+        return parseFloat(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function key_result(col_index) {
+    return function(elem) {
+        var strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+                       'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[col_index].firstChild.data);
+    };
+}
+
+function reset_sort_headers() {
+    find_all('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    find_all('.sortable').forEach(function(elem) {
+        var icon = document.createElement("div");
+        icon.className = "sort-icon";
+        icon.textContent = "vvv";
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove("desc", "active");
+        elem.classList.add("asc", "inactive");
+    });
+}
+
+function toggle_sort_states(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        reset_sort_headers();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function is_all_rows_hidden(value) {
+  return value.hidden == false;
+}
+
+function filter_table(elem) {
+    var outcome_att = "data-test-result";
+    var outcome = elem.getAttribute(outcome_att);
+    class_outcome = outcome + " results-table-row";
+    var outcome_rows = document.getElementsByClassName(class_outcome);
+
+    for(var i = 0; i < outcome_rows.length; i++){
+        outcome_rows[i].hidden = !elem.checked;
+    }
+
+    var rows = find_all('.results-table-row').filter(is_all_rows_hidden);
+    var all_rows_hidden = rows.length == 0 ? true : false;
+    var not_found_message = document.getElementById("not-found-message");
+    not_found_message.hidden = !all_rows_hidden;
+}
+</script>
+    <h1>test_lwe.html</h1>
+    <p>Report generated on 27-Jul-2020 at 10:18:23 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v2.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.9.0", "pytest": "5.4.3"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Linux-4.9.140-tegra-aarch64-with-Ubuntu-18.04-bionic</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"benchmark": "3.2.3", "html": "2.1.1", "metadata": "1.10.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.6.9</td></tr></table>
+    <h2>Summary</h2>
+    <p>30 tests ran in 8.53 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="passed">21 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="failed">9 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filter_table(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable numeric" col="duration">Duration</th>
+          <th>Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_make_lwe_keyswitch_key[cuda:0:0]</td>
+          <td class="col-duration">0.90</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f98f249e8&gt;<br/><br/>    def test_make_lwe_keyswitch_key(thread):<br/>    <br/>        params = NuFHEParameters()<br/>        input_size = params.tgsw_params.tlwe_params.extracted_lweparams.size<br/>        output_size = params.in_out_params.size<br/>        decomp_length = params.ks_decomp_length<br/>        log2_base = params.ks_log2_base<br/>        base = 2**log2_base<br/>        noise = params.in_out_params.min_noise<br/>    <br/>        ks_a = numpy.empty((input_size, decomp_length, base, output_size), dtype=Torus32)<br/>        ks_b = numpy.empty((input_size, decomp_length, base), dtype=Torus32)<br/>        ks_cv = numpy.empty((input_size, decomp_length, base), dtype=ErrorFloat)<br/>    <br/>        in_key = get_test_array(input_size, Int32, (0, 2))<br/>        out_key = get_test_array(output_size, Int32, (0, 2))<br/>        noises_a = get_test_array((input_size, decomp_length, base - 1, output_size), Torus32)<br/>        noises_b = double_to_t32(<br/>            get_test_array((input_size, decomp_length, base - 1), ErrorFloat, (-noise, noise)))<br/>    <br/>        test = MakeLweKeyswitchKey(<br/>&gt;           input_size, output_size, decomp_length, log2_base, noise).compile(thread)<br/><br/>test/test_lwe.py:125: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:207: in compile<br/>    self._tr_tree, translator, thread, fast_math, compiler_options, keep).finalize()<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:192: in _get_plan<br/>    return self._build_plan(plan_factory, thread.device_params, *args)<br/>nufhe/lwe_gpu.py:119: in _build_plan<br/>    plan.computation_call(mul_key, b_term, noises_a, out_key)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:502: in computation_call<br/>    self._compiler_options, self._keep))<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:192: in _get_plan<br/>    return self._build_plan(plan_factory, thread.device_params, *args)<br/>nufhe/lwe_gpu.py:58: in _build_plan<br/>    plan.computation_call(summation, output, matrix, vector)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:502: in computation_call<br/>    self._compiler_options, self._keep))<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:192: in _get_plan<br/>    return self._build_plan(plan_factory, thread.device_params, *args)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/algorithms/reduce.py:168: in _build_plan<br/>    plan_factory, device_params.warp_size, max_wg_size, output, input_)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/algorithms/reduce.py:152: in _build_plan_for_wg_size<br/>    render_kwds=render_kwds)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:473: in kernel_call<br/>    keep=self._keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:566: in compile_static<br/>    constant_arrays=constant_arrays, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:786: in __init__<br/>    constant_arrays=constant_arrays, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:655: in __init__<br/>    self.source, fast_math=fast_math, compiler_options=compiler_options, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:504: in _create_program<br/>    src, fast_math=fast_math, compiler_options=compiler_options, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:227: in _compile<br/>    return SourceModule(src, no_extern_c=True, options=options, keep=keep)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;pycuda.compiler.SourceModule object at 0x7f98f24e48&gt;<br/>source = &#x27;\n\n\n    #define CUDA\n    // taken from pycuda._cluda\n    #define LOCAL_BARRIER __syncthreads()\n\n    #define WIT...BARRIER;\n\n    if (tid == 0)\n    {\n        v = local_mem_[0];\n\n        _module6_(part_num, bid, v);\n    }\n}\n\n&#x27;<br/>nvcc = &#x27;nvcc&#x27;, options = [], keep = False, no_extern_c = True, arch = None, code = None<br/>cache_dir = None, include_dirs = []<br/><br/>    def __init__(self, source, nvcc=&quot;nvcc&quot;, options=None, keep=False,<br/>            no_extern_c=False, arch=None, code=None, cache_dir=None,<br/>            include_dirs=[]):<br/>        self._check_arch(arch)<br/>    <br/>        cubin = compile(source, nvcc, options, keep, no_extern_c,<br/>                arch, code, cache_dir, include_dirs)<br/>    <br/>        from pycuda.driver import module_from_buffer<br/>&gt;       self.module = module_from_buffer(cubin)<br/><span class="error">E       pycuda._driver.LogicError: cuModuleLoadDataEx failed: invalid device context -</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/compiler.py:294: LogicError<br/> -------------------------------Captured log call-------------------------------- <br/>[31m[1mERROR   [0m root:api.py:507 Failed to compile:
+1:
+2:
+3:
+4:    #define CUDA
+5:    // taken from pycuda._cluda
+6:    #define LOCAL_BARRIER __syncthreads()
+7:
+8:    #define WITHIN_KERNEL __device__
+9:    #define KERNEL extern &quot;C&quot; __global__
+10:    #define GLOBAL_MEM /* empty */
+11:    #define GLOBAL_MEM_ARG /* empty */
+12:    #define LOCAL_MEM __shared__
+13:    #define LOCAL_MEM_DYNAMIC extern __shared__
+14:    #define LOCAL_MEM_ARG /* empty */
+15:    #define CONSTANT_MEM __constant__
+16:    #define CONSTANT_MEM_ARG /* empty */
+17:    #define INLINE __forceinline__
+18:    #define SIZE_T int
+19:    #define VSIZE_T int
+20:
+21:    // used to align fields in structures
+22:    #define ALIGN(bytes) __align__(bytes)
+23:
+24:    
+25:
+26:    WITHIN_KERNEL SIZE_T get_local_id(unsigned int dim)
+27:    {
+28:        if(dim == 0) return threadIdx.x;
+29:        if(dim == 1) return threadIdx.y;
+30:        if(dim == 2) return threadIdx.z;
+31:        return 0;
+32:    }
+33:
+34:    WITHIN_KERNEL SIZE_T get_group_id(unsigned int dim)
+35:    {
+36:        if(dim == 0) return blockIdx.x;
+37:        if(dim == 1) return blockIdx.y;
+38:        if(dim == 2) return blockIdx.z;
+39:        return 0;
+40:    }
+41:
+42:    WITHIN_KERNEL SIZE_T get_local_size(unsigned int dim)
+43:    {
+44:        if(dim == 0) return blockDim.x;
+45:        if(dim == 1) return blockDim.y;
+46:        if(dim == 2) return blockDim.z;
+47:        return 1;
+48:    }
+49:
+50:    WITHIN_KERNEL SIZE_T get_num_groups(unsigned int dim)
+51:    {
+52:        if(dim == 0) return gridDim.x;
+53:        if(dim == 1) return gridDim.y;
+54:        if(dim == 2) return gridDim.z;
+55:        return 1;
+56:    }
+57:
+58:    WITHIN_KERNEL SIZE_T get_global_size(unsigned int dim)
+59:    {
+60:        return get_num_groups(dim) * get_local_size(dim);
+61:    }
+62:
+63:    WITHIN_KERNEL SIZE_T get_global_id(unsigned int dim)
+64:    {
+65:        return get_local_id(dim) + get_group_id(dim) * get_local_size(dim);
+66:    }
+67:
+68:
+69:
+70:
+71:    #define COMPLEX_CTR(T) make_##T
+72:
+73:    WITHIN_KERNEL float2 operator+(float2 a, float2 b)
+74:    {
+75:        return COMPLEX_CTR(float2)(a.x + b.x, a.y + b.y);
+76:    }
+77:    WITHIN_KERNEL float2 operator-(float2 a, float2 b)
+78:    {
+79:        return COMPLEX_CTR(float2)(a.x - b.x, a.y - b.y);
+80:    }
+81:    WITHIN_KERNEL float2 operator+(float2 a) { return a; }
+82:    WITHIN_KERNEL float2 operator-(float2 a) { return COMPLEX_CTR(float2)(-a.x, -a.y); }
+83:    WITHIN_KERNEL double2 operator+(double2 a, double2 b)
+84:    {
+85:        return COMPLEX_CTR(double2)(a.x + b.x, a.y + b.y);
+86:    }
+87:    WITHIN_KERNEL double2 operator-(double2 a, double2 b)
+88:    {
+89:        return COMPLEX_CTR(double2)(a.x - b.x, a.y - b.y);
+90:    }
+91:    WITHIN_KERNEL double2 operator+(double2 a) { return a; }
+92:    WITHIN_KERNEL double2 operator-(double2 a) { return COMPLEX_CTR(double2)(-a.x, -a.y); }
+93:
+94:WITHIN_KERNEL VSIZE_T virtual_local_id(unsigned int dim)
+95:{
+96:    if (dim == 1)
+97:    {
+98:
+99:        SIZE_T flat_id =
+100:            get_local_id(0) * 1 +
+101:            0;
+102:
+103:        return (flat_id / 1);
+104:
+105:    }
+106:    if (dim == 0)
+107:    {
+108:
+109:        return 0;
+110:
+111:    }
+112:
+113:    return 0;
+114:}
+115:
+116:WITHIN_KERNEL VSIZE_T virtual_local_size(unsigned int dim)
+117:{
+118:    if (dim == 1)
+119:    {
+120:        return 512;
+121:    }
+122:    if (dim == 0)
+123:    {
+124:        return 1;
+125:    }
+126:
+127:    return 1;
+128:}
+129:
+130:WITHIN_KERNEL VSIZE_T virtual_group_id(unsigned int dim)
+131:{
+132:    if (dim == 1)
+133:    {
+134:
+135:        return 0;
+136:
+137:    }
+138:    if (dim == 0)
+139:    {
+140:
+141:        SIZE_T flat_id =
+142:            get_group_id(1) * 1 +
+143:            0;
+144:
+145:        return (flat_id / 1);
+146:
+147:    }
+148:
+149:    return 0;
+150:}
+151:
+152:WITHIN_KERNEL VSIZE_T virtual_num_groups(unsigned int dim)
+153:{
+154:    if (dim == 1)
+155:    {
+156:        return 1;
+157:    }
+158:    if (dim == 0)
+159:    {
+160:        return 24576;
+161:    }
+162:
+163:    return 1;
+164:}
+165:
+166:WITHIN_KERNEL VSIZE_T virtual_global_id(unsigned int dim)
+167:{
+168:    return virtual_local_id(dim) + virtual_group_id(dim) * virtual_local_size(dim);
+169:}
+170:
+171:WITHIN_KERNEL VSIZE_T virtual_global_size(unsigned int dim)
+172:{
+173:    if(dim == 1)
+174:    {
+175:        return 512;
+176:    }
+177:    if(dim == 0)
+178:    {
+179:        return 24576;
+180:    }
+181:
+182:    return 1;
+183:}
+184:
+185:WITHIN_KERNEL VSIZE_T virtual_global_flat_id()
+186:{
+187:    return
+188:        virtual_global_id(1) * 1 +
+189:        virtual_global_id(0) * 512 +
+190:        0;
+191:}
+192:
+193:WITHIN_KERNEL VSIZE_T virtual_global_flat_size()
+194:{
+195:    return
+196:        virtual_global_size(1) *
+197:        virtual_global_size(0) *
+198:        1;
+199:}
+200:
+201:
+202:WITHIN_KERNEL bool virtual_skip_local_threads()
+203:{
+204:
+205:    return false;
+206:}
+207:
+208:WITHIN_KERNEL bool virtual_skip_groups()
+209:{
+210:
+211:    return false;
+212:}
+213:
+214:WITHIN_KERNEL bool virtual_skip_global_threads()
+215:{
+216:
+217:    return false;
+218:}
+219:
+220:
+221:
+222:#ifndef CUDA
+223:#define MARK_VIRTUAL_FUNCTIONS_AS_USED (void)(virtual_num_groups(0)); (void)(virtual_global_flat_id()); (void)(virtual_global_flat_size())
+224:#else
+225:#define MARK_VIRTUAL_FUNCTIONS_AS_USED
+226:#endif
+227:
+228:#define VIRTUAL_SKIP_THREADS MARK_VIRTUAL_FUNCTIONS_AS_USED; if(virtual_skip_local_threads() || virtual_skip_groups() || virtual_skip_global_threads()) return
+229:
+230:
+231:WITHIN_KERNEL int _module2_(
+232:    int a1, int a2)
+233:{
+234:
+235:    
+236:        int temp0 = (
+237:                a1 * a2
+238:            );
+239:    
+240:
+241:    
+242:    return temp0;
+243:}
+244:
+245:
+246:
+247:
+248:    // leaf input macro for &quot;noises_a&quot;
+249:    #define _module4_(_idx0, _idx1, _idx2, _idx3) (_leaf_noises_a[(_idx0) * (12000) + (_idx1) * (1500) + (_idx2) * (500) + (_idx3) * (1) + (0)])
+250:    
+251:
+252:
+253:
+254:
+255:    // input for a transformation for &quot;noises_a&quot;
+256:    #define _module3_ _module4_(_idx0, _idx1, _idx2, _idx3)
+257:    
+258:
+259:
+260:
+261:
+262:    // leaf input macro for &quot;out_key&quot;
+263:    #define _module5_(_idx0) (_leaf_out_key[(_idx0) * (1) + (0)])
+264:    
+265:
+266:
+267:
+268:
+269:    // input transformation node for &quot;_nested1_nested1_input&quot;
+270:    
+271:    INLINE WITHIN_KERNEL int _module1_func(
+272:        GLOBAL_MEM int *_leaf_noises_a,
+273:GLOBAL_MEM int *_leaf_out_key,
+274:VSIZE_T _idx0,
+275:VSIZE_T _idx1,
+276:VSIZE_T _idx2,
+277:VSIZE_T _idx3)
+278:    {
+279:        int _val;
+280:
+281:        
+282:
+283:            _val =(_module2_(_module3_, _module5_(_idx3)));
+284:            
+285:
+286:
+287:        return _val;
+288:    }
+289:    
+290:    #define _module1_(_idx0, _idx1, _idx2, _idx3) _module1_func(        _leaf_noises_a, _leaf_out_key, _idx0, _idx1, _idx2, _idx3)
+291:    
+292:
+293:
+294:
+295:
+296:    
+297:    INLINE WITHIN_KERNEL int _module0_func(
+298:        GLOBAL_MEM int *_leaf_noises_a, GLOBAL_MEM int *_leaf_out_key, VSIZE_T _c_idx0, VSIZE_T _c_idx1)
+299:    {
+300:        
+301:
+302:    
+303:        
+304:        VSIZE_T _idx0 = _c_idx0 / 24;
+305:        _c_idx0 -= _idx0 * 24;
+306:        
+307:        VSIZE_T _idx1 = _c_idx0 / 3;
+308:        _c_idx0 -= _idx1 * 3;
+309:        
+310:        VSIZE_T _idx2 = _c_idx0 / 1;
+311:    
+312:        
+313:        VSIZE_T _idx3 = _c_idx1 / 1;
+314:    
+315:
+316:
+317:        return
+318:        _module1_(_idx0, _idx1, _idx2, _idx3);
+319:    }
+320:    
+321:    #define _module0_(_c_idx0, _c_idx1) _module0_func(        _leaf_noises_a, _leaf_out_key, _c_idx0, _c_idx1)
+322:    
+323:
+324:
+325:
+326:
+327:    // leaf output macro for &quot;_temp1&quot;
+328:    #define _module7_(_idx0, _idx1, _idx2, _val) _leaf__temp1[(_idx0) * (24) + (_idx1) * (3) + (_idx2) * (1) + (0)] = (_val)
+329:    
+330:
+331:
+332:
+333:
+334:    
+335:    INLINE WITHIN_KERNEL void _module6_func(
+336:        GLOBAL_MEM int *_leaf__temp1, VSIZE_T _c_idx0, VSIZE_T _c_idx1, int _val)
+337:    {
+338:        
+339:
+340:    
+341:        
+342:        VSIZE_T _idx0 = _c_idx0 / 24;
+343:        _c_idx0 -= _idx0 * 24;
+344:        
+345:        VSIZE_T _idx1 = _c_idx0 / 3;
+346:        _c_idx0 -= _idx1 * 3;
+347:        
+348:        VSIZE_T _idx2 = _c_idx0 / 1;
+349:    
+350:    
+351:
+352:
+353:        _module7_(_idx0, _idx1, _idx2, _val);
+354:    }
+355:    
+356:    #define _module6_(_c_idx0, _c_idx1, _val) _module6_func(        _leaf__temp1, _c_idx0, _c_idx1, _val)
+357:    
+358:
+359:
+360:
+361:
+362:
+363:
+364:INLINE WITHIN_KERNEL int reduction_op(int input1, int input2)
+365:{
+366:    
+367:return input1 + input2;
+368:
+369:}
+370:
+371:
+372:KERNEL void kernel_reduce(GLOBAL_MEM int *_leaf__temp1, GLOBAL_MEM int *_leaf_noises_a, GLOBAL_MEM int *_leaf_out_key)
+373:
+374:{
+375:    VIRTUAL_SKIP_THREADS;
+376:
+377:    LOCAL_MEM int local_mem_[512];
+378:
+379:    const VSIZE_T tid = virtual_local_id(1);
+380:    const VSIZE_T bid = virtual_group_id(1);
+381:    const VSIZE_T part_num = virtual_global_id(0);
+382:
+383:    const VSIZE_T index_in_part = 512 * bid + tid;
+384:    const int empty = 0;
+385:
+386:    int v;
+387:    
+388:        if(tid &lt; 500)
+389:        {
+390:            const int t =
+391:                _module0_(
+392:                    part_num, index_in_part + 0);
+393:            v = t;
+394:        }
+395:        else
+396:        {
+397:            v = empty;
+398:        }
+399:
+400:
+401:    local_mem_[tid] = v;
+402:    LOCAL_BARRIER;
+403:
+404:    // We could use the volatile trick here and execute the last several iterations
+405:    // (that fit in a single warp) without LOCAL_BARRIERs, but it gives only
+406:    // a minor performance boost, and works only for some platforms (and only for simple types).
+407:        if(tid &lt; 256)
+408:        {
+409:            int val1, val2;
+410:            val1 = local_mem_[tid];
+411:            val2 = local_mem_[tid + 256];
+412:            const int val = reduction_op(val1, val2);
+413:
+414:            local_mem_[tid] = val;
+415:        }
+416:        LOCAL_BARRIER;
+417:        if(tid &lt; 128)
+418:        {
+419:            int val1, val2;
+420:            val1 = local_mem_[tid];
+421:            val2 = local_mem_[tid + 128];
+422:            const int val = reduction_op(val1, val2);
+423:
+424:            local_mem_[tid] = val;
+425:        }
+426:        LOCAL_BARRIER;
+427:        if(tid &lt; 64)
+428:        {
+429:            int val1, val2;
+430:            val1 = local_mem_[tid];
+431:            val2 = local_mem_[tid + 64];
+432:            const int val = reduction_op(val1, val2);
+433:
+434:            local_mem_[tid] = val;
+435:        }
+436:        LOCAL_BARRIER;
+437:        if(tid &lt; 32)
+438:        {
+439:            int val1, val2;
+440:            val1 = local_mem_[tid];
+441:            val2 = local_mem_[tid + 32];
+442:            const int val = reduction_op(val1, val2);
+443:
+444:            local_mem_[tid] = val;
+445:        }
+446:        LOCAL_BARRIER;
+447:        if(tid &lt; 16)
+448:        {
+449:            int val1, val2;
+450:            val1 = local_mem_[tid];
+451:            val2 = local_mem_[tid + 16];
+452:            const int val = reduction_op(val1, val2);
+453:
+454:            local_mem_[tid] = val;
+455:        }
+456:        LOCAL_BARRIER;
+457:        if(tid &lt; 8)
+458:        {
+459:            int val1, val2;
+460:            val1 = local_mem_[tid];
+461:            val2 = local_mem_[tid + 8];
+462:            const int val = reduction_op(val1, val2);
+463:
+464:            local_mem_[tid] = val;
+465:        }
+466:        LOCAL_BARRIER;
+467:        if(tid &lt; 4)
+468:        {
+469:            int val1, val2;
+470:            val1 = local_mem_[tid];
+471:            val2 = local_mem_[tid + 4];
+472:            const int val = reduction_op(val1, val2);
+473:
+474:            local_mem_[tid] = val;
+475:        }
+476:        LOCAL_BARRIER;
+477:        if(tid &lt; 2)
+478:        {
+479:            int val1, val2;
+480:            val1 = local_mem_[tid];
+481:            val2 = local_mem_[tid + 2];
+482:            const int val = reduction_op(val1, val2);
+483:
+484:            local_mem_[tid] = val;
+485:        }
+486:        LOCAL_BARRIER;
+487:        if(tid &lt; 1)
+488:        {
+489:            int val1, val2;
+490:            val1 = local_mem_[tid];
+491:            val2 = local_mem_[tid + 1];
+492:            const int val = reduction_op(val1, val2);
+493:
+494:            local_mem_[tid] = val;
+495:        }
+496:        LOCAL_BARRIER;
+497:
+498:    if (tid == 0)
+499:    {
+500:        v = local_mem_[0];
+501:
+502:        _module6_(part_num, bid, v);
+503:    }
+504:}
+505:
+506:<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_decrypt[cuda:0:0]</td>
+          <td class="col-duration">0.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f983e4780&gt;<br/><br/>    def test_lwe_decrypt(thread):<br/>    <br/>        params = NuFHEParameters()<br/>        lwe_size = params.in_out_params.size<br/>    <br/>        shape = (16, 20)<br/>        result = numpy.empty(shape, Torus32)<br/>        lwe_a = get_test_array(shape + (lwe_size,), Torus32)<br/>        lwe_b = get_test_array(shape, Torus32)<br/>        key = get_test_array(lwe_size, Int32, (0, 2))<br/>    <br/>&gt;       test = LweDecrypt(shape, lwe_size).compile(thread)<br/><br/>test/test_lwe.py:200: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:207: in compile<br/>    self._tr_tree, translator, thread, fast_math, compiler_options, keep).finalize()<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:192: in _get_plan<br/>    return self._build_plan(plan_factory, thread.device_params, *args)<br/>nufhe/lwe_gpu.py:282: in _build_plan<br/>    plan.computation_call(mul_key, result, lwe_b, lwe_a, key)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:502: in computation_call<br/>    self._compiler_options, self._keep))<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:192: in _get_plan<br/>    return self._build_plan(plan_factory, thread.device_params, *args)<br/>nufhe/lwe_gpu.py:58: in _build_plan<br/>    plan.computation_call(summation, output, matrix, vector)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:502: in computation_call<br/>    self._compiler_options, self._keep))<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:192: in _get_plan<br/>    return self._build_plan(plan_factory, thread.device_params, *args)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/algorithms/reduce.py:168: in _build_plan<br/>    plan_factory, device_params.warp_size, max_wg_size, output, input_)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/algorithms/reduce.py:152: in _build_plan_for_wg_size<br/>    render_kwds=render_kwds)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:473: in kernel_call<br/>    keep=self._keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:566: in compile_static<br/>    constant_arrays=constant_arrays, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:786: in __init__<br/>    constant_arrays=constant_arrays, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:655: in __init__<br/>    self.source, fast_math=fast_math, compiler_options=compiler_options, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:504: in _create_program<br/>    src, fast_math=fast_math, compiler_options=compiler_options, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:227: in _compile<br/>    return SourceModule(src, no_extern_c=True, options=options, keep=keep)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;pycuda.compiler.SourceModule object at 0x7f9843c5f8&gt;<br/>source = &#x27;\n\n\n    #define CUDA\n    // taken from pycuda._cluda\n    #define LOCAL_BARRIER __syncthreads()\n\n    #define WIT...BARRIER;\n\n    if (tid == 0)\n    {\n        v = local_mem_[0];\n\n        _module6_(part_num, bid, v);\n    }\n}\n\n&#x27;<br/>nvcc = &#x27;nvcc&#x27;, options = [], keep = False, no_extern_c = True, arch = None, code = None<br/>cache_dir = None, include_dirs = []<br/><br/>    def __init__(self, source, nvcc=&quot;nvcc&quot;, options=None, keep=False,<br/>            no_extern_c=False, arch=None, code=None, cache_dir=None,<br/>            include_dirs=[]):<br/>        self._check_arch(arch)<br/>    <br/>        cubin = compile(source, nvcc, options, keep, no_extern_c,<br/>                arch, code, cache_dir, include_dirs)<br/>    <br/>        from pycuda.driver import module_from_buffer<br/>&gt;       self.module = module_from_buffer(cubin)<br/><span class="error">E       pycuda._driver.LogicError: cuModuleLoadDataEx failed: invalid device context -</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/compiler.py:294: LogicError<br/> -------------------------------Captured log call-------------------------------- <br/>[31m[1mERROR   [0m root:api.py:507 Failed to compile:
+1:
+2:
+3:
+4:    #define CUDA
+5:    // taken from pycuda._cluda
+6:    #define LOCAL_BARRIER __syncthreads()
+7:
+8:    #define WITHIN_KERNEL __device__
+9:    #define KERNEL extern &quot;C&quot; __global__
+10:    #define GLOBAL_MEM /* empty */
+11:    #define GLOBAL_MEM_ARG /* empty */
+12:    #define LOCAL_MEM __shared__
+13:    #define LOCAL_MEM_DYNAMIC extern __shared__
+14:    #define LOCAL_MEM_ARG /* empty */
+15:    #define CONSTANT_MEM __constant__
+16:    #define CONSTANT_MEM_ARG /* empty */
+17:    #define INLINE __forceinline__
+18:    #define SIZE_T int
+19:    #define VSIZE_T int
+20:
+21:    // used to align fields in structures
+22:    #define ALIGN(bytes) __align__(bytes)
+23:
+24:    
+25:
+26:    WITHIN_KERNEL SIZE_T get_local_id(unsigned int dim)
+27:    {
+28:        if(dim == 0) return threadIdx.x;
+29:        if(dim == 1) return threadIdx.y;
+30:        if(dim == 2) return threadIdx.z;
+31:        return 0;
+32:    }
+33:
+34:    WITHIN_KERNEL SIZE_T get_group_id(unsigned int dim)
+35:    {
+36:        if(dim == 0) return blockIdx.x;
+37:        if(dim == 1) return blockIdx.y;
+38:        if(dim == 2) return blockIdx.z;
+39:        return 0;
+40:    }
+41:
+42:    WITHIN_KERNEL SIZE_T get_local_size(unsigned int dim)
+43:    {
+44:        if(dim == 0) return blockDim.x;
+45:        if(dim == 1) return blockDim.y;
+46:        if(dim == 2) return blockDim.z;
+47:        return 1;
+48:    }
+49:
+50:    WITHIN_KERNEL SIZE_T get_num_groups(unsigned int dim)
+51:    {
+52:        if(dim == 0) return gridDim.x;
+53:        if(dim == 1) return gridDim.y;
+54:        if(dim == 2) return gridDim.z;
+55:        return 1;
+56:    }
+57:
+58:    WITHIN_KERNEL SIZE_T get_global_size(unsigned int dim)
+59:    {
+60:        return get_num_groups(dim) * get_local_size(dim);
+61:    }
+62:
+63:    WITHIN_KERNEL SIZE_T get_global_id(unsigned int dim)
+64:    {
+65:        return get_local_id(dim) + get_group_id(dim) * get_local_size(dim);
+66:    }
+67:
+68:
+69:
+70:
+71:    #define COMPLEX_CTR(T) make_##T
+72:
+73:    WITHIN_KERNEL float2 operator+(float2 a, float2 b)
+74:    {
+75:        return COMPLEX_CTR(float2)(a.x + b.x, a.y + b.y);
+76:    }
+77:    WITHIN_KERNEL float2 operator-(float2 a, float2 b)
+78:    {
+79:        return COMPLEX_CTR(float2)(a.x - b.x, a.y - b.y);
+80:    }
+81:    WITHIN_KERNEL float2 operator+(float2 a) { return a; }
+82:    WITHIN_KERNEL float2 operator-(float2 a) { return COMPLEX_CTR(float2)(-a.x, -a.y); }
+83:    WITHIN_KERNEL double2 operator+(double2 a, double2 b)
+84:    {
+85:        return COMPLEX_CTR(double2)(a.x + b.x, a.y + b.y);
+86:    }
+87:    WITHIN_KERNEL double2 operator-(double2 a, double2 b)
+88:    {
+89:        return COMPLEX_CTR(double2)(a.x - b.x, a.y - b.y);
+90:    }
+91:    WITHIN_KERNEL double2 operator+(double2 a) { return a; }
+92:    WITHIN_KERNEL double2 operator-(double2 a) { return COMPLEX_CTR(double2)(-a.x, -a.y); }
+93:
+94:WITHIN_KERNEL VSIZE_T virtual_local_id(unsigned int dim)
+95:{
+96:    if (dim == 1)
+97:    {
+98:
+99:        SIZE_T flat_id =
+100:            get_local_id(0) * 1 +
+101:            0;
+102:
+103:        return (flat_id / 1);
+104:
+105:    }
+106:    if (dim == 0)
+107:    {
+108:
+109:        return 0;
+110:
+111:    }
+112:
+113:    return 0;
+114:}
+115:
+116:WITHIN_KERNEL VSIZE_T virtual_local_size(unsigned int dim)
+117:{
+118:    if (dim == 1)
+119:    {
+120:        return 512;
+121:    }
+122:    if (dim == 0)
+123:    {
+124:        return 1;
+125:    }
+126:
+127:    return 1;
+128:}
+129:
+130:WITHIN_KERNEL VSIZE_T virtual_group_id(unsigned int dim)
+131:{
+132:    if (dim == 1)
+133:    {
+134:
+135:        return 0;
+136:
+137:    }
+138:    if (dim == 0)
+139:    {
+140:
+141:        SIZE_T flat_id =
+142:            get_group_id(1) * 1 +
+143:            0;
+144:
+145:        return (flat_id / 1);
+146:
+147:    }
+148:
+149:    return 0;
+150:}
+151:
+152:WITHIN_KERNEL VSIZE_T virtual_num_groups(unsigned int dim)
+153:{
+154:    if (dim == 1)
+155:    {
+156:        return 1;
+157:    }
+158:    if (dim == 0)
+159:    {
+160:        return 320;
+161:    }
+162:
+163:    return 1;
+164:}
+165:
+166:WITHIN_KERNEL VSIZE_T virtual_global_id(unsigned int dim)
+167:{
+168:    return virtual_local_id(dim) + virtual_group_id(dim) * virtual_local_size(dim);
+169:}
+170:
+171:WITHIN_KERNEL VSIZE_T virtual_global_size(unsigned int dim)
+172:{
+173:    if(dim == 1)
+174:    {
+175:        return 512;
+176:    }
+177:    if(dim == 0)
+178:    {
+179:        return 320;
+180:    }
+181:
+182:    return 1;
+183:}
+184:
+185:WITHIN_KERNEL VSIZE_T virtual_global_flat_id()
+186:{
+187:    return
+188:        virtual_global_id(1) * 1 +
+189:        virtual_global_id(0) * 512 +
+190:        0;
+191:}
+192:
+193:WITHIN_KERNEL VSIZE_T virtual_global_flat_size()
+194:{
+195:    return
+196:        virtual_global_size(1) *
+197:        virtual_global_size(0) *
+198:        1;
+199:}
+200:
+201:
+202:WITHIN_KERNEL bool virtual_skip_local_threads()
+203:{
+204:
+205:    return false;
+206:}
+207:
+208:WITHIN_KERNEL bool virtual_skip_groups()
+209:{
+210:
+211:    return false;
+212:}
+213:
+214:WITHIN_KERNEL bool virtual_skip_global_threads()
+215:{
+216:
+217:    return false;
+218:}
+219:
+220:
+221:
+222:#ifndef CUDA
+223:#define MARK_VIRTUAL_FUNCTIONS_AS_USED (void)(virtual_num_groups(0)); (void)(virtual_global_flat_id()); (void)(virtual_global_flat_size())
+224:#else
+225:#define MARK_VIRTUAL_FUNCTIONS_AS_USED
+226:#endif
+227:
+228:#define VIRTUAL_SKIP_THREADS MARK_VIRTUAL_FUNCTIONS_AS_USED; if(virtual_skip_local_threads() || virtual_skip_groups() || virtual_skip_global_threads()) return
+229:
+230:
+231:WITHIN_KERNEL int _module2_(
+232:    int a1, int a2)
+233:{
+234:
+235:    
+236:        int temp0 = (
+237:                a1 * a2
+238:            );
+239:    
+240:
+241:    
+242:    return temp0;
+243:}
+244:
+245:
+246:
+247:
+248:    // leaf input macro for &quot;lwe_a&quot;
+249:    #define _module4_(_idx0, _idx1, _idx2) (_leaf_lwe_a[(_idx0) * (10000) + (_idx1) * (500) + (_idx2) * (1) + (0)])
+250:    
+251:
+252:
+253:
+254:
+255:    // input for a transformation for &quot;lwe_a&quot;
+256:    #define _module3_ _module4_(_idx0, _idx1, _idx2)
+257:    
+258:
+259:
+260:
+261:
+262:    // leaf input macro for &quot;key&quot;
+263:    #define _module5_(_idx0) (_leaf_key[(_idx0) * (1) + (0)])
+264:    
+265:
+266:
+267:
+268:
+269:    // input transformation node for &quot;_nested1_nested1_input&quot;
+270:    
+271:    INLINE WITHIN_KERNEL int _module1_func(
+272:        GLOBAL_MEM int *_leaf_lwe_a,
+273:GLOBAL_MEM int *_leaf_key,
+274:VSIZE_T _idx0,
+275:VSIZE_T _idx1,
+276:VSIZE_T _idx2)
+277:    {
+278:        int _val;
+279:
+280:        
+281:
+282:            _val =(_module2_(_module3_, _module5_(_idx2)));
+283:            
+284:
+285:
+286:        return _val;
+287:    }
+288:    
+289:    #define _module1_(_idx0, _idx1, _idx2) _module1_func(        _leaf_lwe_a, _leaf_key, _idx0, _idx1, _idx2)
+290:    
+291:
+292:
+293:
+294:
+295:    
+296:    INLINE WITHIN_KERNEL int _module0_func(
+297:        GLOBAL_MEM int *_leaf_lwe_a, GLOBAL_MEM int *_leaf_key, VSIZE_T _c_idx0, VSIZE_T _c_idx1)
+298:    {
+299:        
+300:
+301:    
+302:        
+303:        VSIZE_T _idx0 = _c_idx0 / 20;
+304:        _c_idx0 -= _idx0 * 20;
+305:        
+306:        VSIZE_T _idx1 = _c_idx0 / 1;
+307:    
+308:        
+309:        VSIZE_T _idx2 = _c_idx1 / 1;
+310:    
+311:
+312:
+313:        return
+314:        _module1_(_idx0, _idx1, _idx2);
+315:    }
+316:    
+317:    #define _module0_(_c_idx0, _c_idx1) _module0_func(        _leaf_lwe_a, _leaf_key, _c_idx0, _c_idx1)
+318:    
+319:
+320:
+321:
+322:
+323:    // leaf output macro for &quot;result&quot;
+324:    #define _module9_(_idx0, _idx1, _val) _leaf_result[(_idx0) * (20) + (_idx1) * (1) + (0)] = (_val)
+325:    
+326:
+327:
+328:
+329:
+330:    // output for a transformation for &quot;result&quot;
+331:    #define _module8_(_val) _module9_(_idx0, _idx1, _val)
+332:    
+333:
+334:
+335:
+336:
+337:    // leaf input macro for &quot;lwe_b&quot;
+338:    #define _module11_(_idx0, _idx1) (_leaf_lwe_b[(_idx0) * (20) + (_idx1) * (1) + (0)])
+339:    
+340:
+341:
+342:
+343:
+344:    // input for a transformation for &quot;lwe_b&quot;
+345:    #define _module10_ _module11_(_idx0, _idx1)
+346:    
+347:
+348:
+349:
+350:
+351:    // output transformation node for &quot;_nested1_output&quot;
+352:    
+353:    INLINE WITHIN_KERNEL void _module7_func(
+354:        GLOBAL_MEM int *_leaf_result,
+355:GLOBAL_MEM int *_leaf_lwe_b,
+356:VSIZE_T _idx0,
+357:VSIZE_T _idx1,
+358:int _val)
+359:    {
+360:
+361:        
+362:
+363:            _module8_(_module10_ - _val);
+364:            
+365:
+366:
+367:    }
+368:    
+369:    #define _module7_(_idx0, _idx1, _val) _module7_func(        _leaf_result, _leaf_lwe_b, _idx0, _idx1, _val)
+370:    
+371:
+372:
+373:
+374:
+375:    
+376:    INLINE WITHIN_KERNEL void _module6_func(
+377:        GLOBAL_MEM int *_leaf_result, GLOBAL_MEM int *_leaf_lwe_b, VSIZE_T _c_idx0, VSIZE_T _c_idx1, int _val)
+378:    {
+379:        
+380:
+381:    
+382:        
+383:        VSIZE_T _idx0 = _c_idx0 / 20;
+384:        _c_idx0 -= _idx0 * 20;
+385:        
+386:        VSIZE_T _idx1 = _c_idx0 / 1;
+387:    
+388:    
+389:
+390:
+391:        _module7_(_idx0, _idx1, _val);
+392:    }
+393:    
+394:    #define _module6_(_c_idx0, _c_idx1, _val) _module6_func(        _leaf_result, _leaf_lwe_b, _c_idx0, _c_idx1, _val)
+395:    
+396:
+397:
+398:
+399:
+400:
+401:
+402:INLINE WITHIN_KERNEL int reduction_op(int input1, int input2)
+403:{
+404:    
+405:return input1 + input2;
+406:
+407:}
+408:
+409:
+410:KERNEL void kernel_reduce(GLOBAL_MEM int *_leaf_result, GLOBAL_MEM int *_leaf_lwe_b, GLOBAL_MEM int *_leaf_lwe_a, GLOBAL_MEM int *_leaf_key)
+411:
+412:{
+413:    VIRTUAL_SKIP_THREADS;
+414:
+415:    LOCAL_MEM int local_mem_[512];
+416:
+417:    const VSIZE_T tid = virtual_local_id(1);
+418:    const VSIZE_T bid = virtual_group_id(1);
+419:    const VSIZE_T part_num = virtual_global_id(0);
+420:
+421:    const VSIZE_T index_in_part = 512 * bid + tid;
+422:    const int empty = 0;
+423:
+424:    int v;
+425:    
+426:        if(tid &lt; 500)
+427:        {
+428:            const int t =
+429:                _module0_(
+430:                    part_num, index_in_part + 0);
+431:            v = t;
+432:        }
+433:        else
+434:        {
+435:            v = empty;
+436:        }
+437:
+438:
+439:    local_mem_[tid] = v;
+440:    LOCAL_BARRIER;
+441:
+442:    // We could use the volatile trick here and execute the last several iterations
+443:    // (that fit in a single warp) without LOCAL_BARRIERs, but it gives only
+444:    // a minor performance boost, and works only for some platforms (and only for simple types).
+445:        if(tid &lt; 256)
+446:        {
+447:            int val1, val2;
+448:            val1 = local_mem_[tid];
+449:            val2 = local_mem_[tid + 256];
+450:            const int val = reduction_op(val1, val2);
+451:
+452:            local_mem_[tid] = val;
+453:        }
+454:        LOCAL_BARRIER;
+455:        if(tid &lt; 128)
+456:        {
+457:            int val1, val2;
+458:            val1 = local_mem_[tid];
+459:            val2 = local_mem_[tid + 128];
+460:            const int val = reduction_op(val1, val2);
+461:
+462:            local_mem_[tid] = val;
+463:        }
+464:        LOCAL_BARRIER;
+465:        if(tid &lt; 64)
+466:        {
+467:            int val1, val2;
+468:            val1 = local_mem_[tid];
+469:            val2 = local_mem_[tid + 64];
+470:            const int val = reduction_op(val1, val2);
+471:
+472:            local_mem_[tid] = val;
+473:        }
+474:        LOCAL_BARRIER;
+475:        if(tid &lt; 32)
+476:        {
+477:            int val1, val2;
+478:            val1 = local_mem_[tid];
+479:            val2 = local_mem_[tid + 32];
+480:            const int val = reduction_op(val1, val2);
+481:
+482:            local_mem_[tid] = val;
+483:        }
+484:        LOCAL_BARRIER;
+485:        if(tid &lt; 16)
+486:        {
+487:            int val1, val2;
+488:            val1 = local_mem_[tid];
+489:            val2 = local_mem_[tid + 16];
+490:            const int val = reduction_op(val1, val2);
+491:
+492:            local_mem_[tid] = val;
+493:        }
+494:        LOCAL_BARRIER;
+495:        if(tid &lt; 8)
+496:        {
+497:            int val1, val2;
+498:            val1 = local_mem_[tid];
+499:            val2 = local_mem_[tid + 8];
+500:            const int val = reduction_op(val1, val2);
+501:
+502:            local_mem_[tid] = val;
+503:        }
+504:        LOCAL_BARRIER;
+505:        if(tid &lt; 4)
+506:        {
+507:            int val1, val2;
+508:            val1 = local_mem_[tid];
+509:            val2 = local_mem_[tid + 4];
+510:            const int val = reduction_op(val1, val2);
+511:
+512:            local_mem_[tid] = val;
+513:        }
+514:        LOCAL_BARRIER;
+515:        if(tid &lt; 2)
+516:        {
+517:            int val1, val2;
+518:            val1 = local_mem_[tid];
+519:            val2 = local_mem_[tid + 2];
+520:            const int val = reduction_op(val1, val2);
+521:
+522:            local_mem_[tid] = val;
+523:        }
+524:        LOCAL_BARRIER;
+525:        if(tid &lt; 1)
+526:        {
+527:            int val1, val2;
+528:            val1 = local_mem_[tid];
+529:            val2 = local_mem_[tid + 1];
+530:            const int val = reduction_op(val1, val2);
+531:
+532:            local_mem_[tid] = val;
+533:        }
+534:        LOCAL_BARRIER;
+535:
+536:    if (tid == 0)
+537:    {
+538:        v = local_mem_[0];
+539:
+540:        _module6_(part_num, bid, v);
+541:    }
+542:}
+543:
+544:<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_linear_broadcast[cuda:0:0]</td>
+          <td class="col-duration">0.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f98350f60&gt;<br/><br/>    def test_lwe_linear_broadcast(thread):<br/>    <br/>        params = NuFHEParameters()<br/>        lwe_size = params.in_out_params.size<br/>    <br/>        res_shape = (10, 20)<br/>        src_shape = res_shape[1:]<br/>    <br/>        res_a = get_test_array(res_shape + (lwe_size,), Torus32)<br/>        res_b = get_test_array(res_shape, Torus32)<br/>        res_cv = get_test_array(res_shape, ErrorFloat, (-1, 1))<br/>    <br/>        src_a = get_test_array(src_shape + (lwe_size,), Torus32)<br/>        src_b = get_test_array(src_shape, Torus32)<br/>        src_cv = get_test_array(src_shape, ErrorFloat, (-1, 1))<br/>    <br/>        coeff = 1<br/>        add_result = True<br/>    <br/>        res_shape_info = LweSampleArrayShapeInfo(res_a, res_b, res_cv)<br/>        src_shape_info = LweSampleArrayShapeInfo(src_a, src_b, src_cv)<br/>    <br/>&gt;       test = LweLinear(res_shape_info, src_shape_info, add_result=add_result).compile(thread)<br/><br/>test/test_lwe.py:278: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:207: in compile<br/>    self._tr_tree, translator, thread, fast_math, compiler_options, keep).finalize()<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:192: in _get_plan<br/>    return self._build_plan(plan_factory, thread.device_params, *args)<br/>nufhe/lwe_gpu.py:313: in _build_plan<br/>    add_result=self._add_result,<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:473: in kernel_call<br/>    keep=self._keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:566: in compile_static<br/>    constant_arrays=constant_arrays, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:786: in __init__<br/>    constant_arrays=constant_arrays, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:655: in __init__<br/>    self.source, fast_math=fast_math, compiler_options=compiler_options, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:504: in _create_program<br/>    src, fast_math=fast_math, compiler_options=compiler_options, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:227: in _compile<br/>    return SourceModule(src, no_extern_c=True, options=options, keep=keep)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;pycuda.compiler.SourceModule object at 0x7f98f38cf8&gt;<br/>source = &#x27;\n\n\n    #define CUDA\n    // taken from pycuda._cluda\n    #define LOCAL_BARRIER __syncthreads()\n\n    #define WIT...      _module7_(batch_id_0, batch_id_1)\n            + _leaf_coeff * _leaf_coeff * _module8_(batch_id_1));\n    }\n}\n&#x27;<br/>nvcc = &#x27;nvcc&#x27;, options = [], keep = False, no_extern_c = True, arch = None, code = None<br/>cache_dir = None, include_dirs = []<br/><br/>    def __init__(self, source, nvcc=&quot;nvcc&quot;, options=None, keep=False,<br/>            no_extern_c=False, arch=None, code=None, cache_dir=None,<br/>            include_dirs=[]):<br/>        self._check_arch(arch)<br/>    <br/>        cubin = compile(source, nvcc, options, keep, no_extern_c,<br/>                arch, code, cache_dir, include_dirs)<br/>    <br/>        from pycuda.driver import module_from_buffer<br/>&gt;       self.module = module_from_buffer(cubin)<br/><span class="error">E       pycuda._driver.LogicError: cuModuleLoadDataEx failed: invalid device context -</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/compiler.py:294: LogicError<br/> -------------------------------Captured log call-------------------------------- <br/>[31m[1mERROR   [0m root:api.py:507 Failed to compile:
+1:
+2:
+3:
+4:    #define CUDA
+5:    // taken from pycuda._cluda
+6:    #define LOCAL_BARRIER __syncthreads()
+7:
+8:    #define WITHIN_KERNEL __device__
+9:    #define KERNEL extern &quot;C&quot; __global__
+10:    #define GLOBAL_MEM /* empty */
+11:    #define GLOBAL_MEM_ARG /* empty */
+12:    #define LOCAL_MEM __shared__
+13:    #define LOCAL_MEM_DYNAMIC extern __shared__
+14:    #define LOCAL_MEM_ARG /* empty */
+15:    #define CONSTANT_MEM __constant__
+16:    #define CONSTANT_MEM_ARG /* empty */
+17:    #define INLINE __forceinline__
+18:    #define SIZE_T int
+19:    #define VSIZE_T int
+20:
+21:    // used to align fields in structures
+22:    #define ALIGN(bytes) __align__(bytes)
+23:
+24:    
+25:
+26:    WITHIN_KERNEL SIZE_T get_local_id(unsigned int dim)
+27:    {
+28:        if(dim == 0) return threadIdx.x;
+29:        if(dim == 1) return threadIdx.y;
+30:        if(dim == 2) return threadIdx.z;
+31:        return 0;
+32:    }
+33:
+34:    WITHIN_KERNEL SIZE_T get_group_id(unsigned int dim)
+35:    {
+36:        if(dim == 0) return blockIdx.x;
+37:        if(dim == 1) return blockIdx.y;
+38:        if(dim == 2) return blockIdx.z;
+39:        return 0;
+40:    }
+41:
+42:    WITHIN_KERNEL SIZE_T get_local_size(unsigned int dim)
+43:    {
+44:        if(dim == 0) return blockDim.x;
+45:        if(dim == 1) return blockDim.y;
+46:        if(dim == 2) return blockDim.z;
+47:        return 1;
+48:    }
+49:
+50:    WITHIN_KERNEL SIZE_T get_num_groups(unsigned int dim)
+51:    {
+52:        if(dim == 0) return gridDim.x;
+53:        if(dim == 1) return gridDim.y;
+54:        if(dim == 2) return gridDim.z;
+55:        return 1;
+56:    }
+57:
+58:    WITHIN_KERNEL SIZE_T get_global_size(unsigned int dim)
+59:    {
+60:        return get_num_groups(dim) * get_local_size(dim);
+61:    }
+62:
+63:    WITHIN_KERNEL SIZE_T get_global_id(unsigned int dim)
+64:    {
+65:        return get_local_id(dim) + get_group_id(dim) * get_local_size(dim);
+66:    }
+67:
+68:
+69:
+70:
+71:    #define COMPLEX_CTR(T) make_##T
+72:
+73:    WITHIN_KERNEL float2 operator+(float2 a, float2 b)
+74:    {
+75:        return COMPLEX_CTR(float2)(a.x + b.x, a.y + b.y);
+76:    }
+77:    WITHIN_KERNEL float2 operator-(float2 a, float2 b)
+78:    {
+79:        return COMPLEX_CTR(float2)(a.x - b.x, a.y - b.y);
+80:    }
+81:    WITHIN_KERNEL float2 operator+(float2 a) { return a; }
+82:    WITHIN_KERNEL float2 operator-(float2 a) { return COMPLEX_CTR(float2)(-a.x, -a.y); }
+83:    WITHIN_KERNEL double2 operator+(double2 a, double2 b)
+84:    {
+85:        return COMPLEX_CTR(double2)(a.x + b.x, a.y + b.y);
+86:    }
+87:    WITHIN_KERNEL double2 operator-(double2 a, double2 b)
+88:    {
+89:        return COMPLEX_CTR(double2)(a.x - b.x, a.y - b.y);
+90:    }
+91:    WITHIN_KERNEL double2 operator+(double2 a) { return a; }
+92:    WITHIN_KERNEL double2 operator-(double2 a) { return COMPLEX_CTR(double2)(-a.x, -a.y); }
+93:
+94:WITHIN_KERNEL VSIZE_T virtual_local_id(unsigned int dim)
+95:{
+96:    if (dim == 2)
+97:    {
+98:
+99:        SIZE_T flat_id =
+100:            get_local_id(0) * 1 +
+101:            0;
+102:
+103:        return (flat_id / 1);
+104:
+105:    }
+106:    if (dim == 1)
+107:    {
+108:
+109:        SIZE_T flat_id =
+110:            get_local_id(1) * 1 +
+111:            0;
+112:
+113:        return (flat_id / 1);
+114:
+115:    }
+116:    if (dim == 0)
+117:    {
+118:
+119:        return 0;
+120:
+121:    }
+122:
+123:    return 0;
+124:}
+125:
+126:WITHIN_KERNEL VSIZE_T virtual_local_size(unsigned int dim)
+127:{
+128:    if (dim == 2)
+129:    {
+130:        return 512;
+131:    }
+132:    if (dim == 1)
+133:    {
+134:        return 2;
+135:    }
+136:    if (dim == 0)
+137:    {
+138:        return 1;
+139:    }
+140:
+141:    return 1;
+142:}
+143:
+144:WITHIN_KERNEL VSIZE_T virtual_group_id(unsigned int dim)
+145:{
+146:    if (dim == 2)
+147:    {
+148:
+149:        return 0;
+150:
+151:    }
+152:    if (dim == 1)
+153:    {
+154:
+155:        SIZE_T flat_id =
+156:            get_group_id(1) * 1 +
+157:            0;
+158:
+159:        return (flat_id / 1);
+160:
+161:    }
+162:    if (dim == 0)
+163:    {
+164:
+165:        SIZE_T flat_id =
+166:            get_group_id(2) * 1 +
+167:            0;
+168:
+169:        return (flat_id / 1);
+170:
+171:    }
+172:
+173:    return 0;
+174:}
+175:
+176:WITHIN_KERNEL VSIZE_T virtual_num_groups(unsigned int dim)
+177:{
+178:    if (dim == 2)
+179:    {
+180:        return 1;
+181:    }
+182:    if (dim == 1)
+183:    {
+184:        return 10;
+185:    }
+186:    if (dim == 0)
+187:    {
+188:        return 10;
+189:    }
+190:
+191:    return 1;
+192:}
+193:
+194:WITHIN_KERNEL VSIZE_T virtual_global_id(unsigned int dim)
+195:{
+196:    return virtual_local_id(dim) + virtual_group_id(dim) * virtual_local_size(dim);
+197:}
+198:
+199:WITHIN_KERNEL VSIZE_T virtual_global_size(unsigned int dim)
+200:{
+201:    if(dim == 2)
+202:    {
+203:        return 500;
+204:    }
+205:    if(dim == 1)
+206:    {
+207:        return 20;
+208:    }
+209:    if(dim == 0)
+210:    {
+211:        return 10;
+212:    }
+213:
+214:    return 1;
+215:}
+216:
+217:WITHIN_KERNEL VSIZE_T virtual_global_flat_id()
+218:{
+219:    return
+220:        virtual_global_id(2) * 1 +
+221:        virtual_global_id(1) * 500 +
+222:        virtual_global_id(0) * 10000 +
+223:        0;
+224:}
+225:
+226:WITHIN_KERNEL VSIZE_T virtual_global_flat_size()
+227:{
+228:    return
+229:        virtual_global_size(2) *
+230:        virtual_global_size(1) *
+231:        virtual_global_size(0) *
+232:        1;
+233:}
+234:
+235:
+236:WITHIN_KERNEL bool virtual_skip_local_threads()
+237:{
+238:
+239:    return false;
+240:}
+241:
+242:WITHIN_KERNEL bool virtual_skip_groups()
+243:{
+244:
+245:    return false;
+246:}
+247:
+248:WITHIN_KERNEL bool virtual_skip_global_threads()
+249:{
+250:    if (virtual_global_id(2) &gt;= 500)
+251:        return true;
+252:
+253:    return false;
+254:}
+255:
+256:
+257:
+258:#ifndef CUDA
+259:#define MARK_VIRTUAL_FUNCTIONS_AS_USED (void)(virtual_num_groups(0)); (void)(virtual_global_flat_id()); (void)(virtual_global_flat_size())
+260:#else
+261:#define MARK_VIRTUAL_FUNCTIONS_AS_USED
+262:#endif
+263:
+264:#define VIRTUAL_SKIP_THREADS MARK_VIRTUAL_FUNCTIONS_AS_USED; if(virtual_skip_local_threads() || virtual_skip_groups() || virtual_skip_global_threads()) return
+265:
+266:
+267:    // leaf output macro for &quot;result_a&quot;
+268:    #define _module0_(_idx0, _idx1, _idx2, _val) _leaf_result_a[(_idx0) * (10000) + (_idx1) * (500) + (_idx2) * (1) + (0)] = (_val)
+269:    
+270:
+271:
+272:
+273:
+274:    // leaf input macro for &quot;result_a&quot;
+275:    #define _module1_(_idx0, _idx1, _idx2) (_leaf_result_a[(_idx0) * (10000) + (_idx1) * (500) + (_idx2) * (1) + (0)])
+276:    
+277:
+278:
+279:
+280:
+281:    // leaf input macro for &quot;source_a&quot;
+282:    #define _module2_(_idx0, _idx1) (_leaf_source_a[(_idx0) * (500) + (_idx1) * (1) + (0)])
+283:    
+284:
+285:
+286:
+287:
+288:    // leaf output macro for &quot;result_b&quot;
+289:    #define _module3_(_idx0, _idx1, _val) _leaf_result_b[(_idx0) * (20) + (_idx1) * (1) + (0)] = (_val)
+290:    
+291:
+292:
+293:
+294:
+295:    // leaf input macro for &quot;result_b&quot;
+296:    #define _module4_(_idx0, _idx1) (_leaf_result_b[(_idx0) * (20) + (_idx1) * (1) + (0)])
+297:    
+298:
+299:
+300:
+301:
+302:    // leaf input macro for &quot;source_b&quot;
+303:    #define _module5_(_idx0) (_leaf_source_b[(_idx0) * (1) + (0)])
+304:    
+305:
+306:
+307:
+308:
+309:    // leaf output macro for &quot;result_cv&quot;
+310:    #define _module6_(_idx0, _idx1, _val) _leaf_result_cv[(_idx0) * (20) + (_idx1) * (1) + (0)] = (_val)
+311:    
+312:
+313:
+314:
+315:
+316:    // leaf input macro for &quot;result_cv&quot;
+317:    #define _module7_(_idx0, _idx1) (_leaf_result_cv[(_idx0) * (20) + (_idx1) * (1) + (0)])
+318:    
+319:
+320:
+321:
+322:
+323:    // leaf input macro for &quot;source_cv&quot;
+324:    #define _module8_(_idx0) (_leaf_source_cv[(_idx0) * (1) + (0)])
+325:    
+326:
+327:
+328:
+329:
+330:
+331:
+332:
+333:KERNEL void lwe_linear(GLOBAL_MEM int *_leaf_result_a, GLOBAL_MEM int *_leaf_result_b, GLOBAL_MEM float *_leaf_result_cv, GLOBAL_MEM int *_leaf_source_a, GLOBAL_MEM int *_leaf_source_b, GLOBAL_MEM float *_leaf_source_cv, int _leaf_coeff)
+334:
+335:{
+336:    VIRTUAL_SKIP_THREADS;
+337:
+338:    int batch_id_0 = virtual_global_id(0);
+339:    int batch_id_1 = virtual_global_id(1);
+340:    int n_id = virtual_global_id(2);
+341:
+342:    _module0_(
+343:        batch_id_0, batch_id_1, n_id,
+344:        _module1_(batch_id_0, batch_id_1, n_id)
+345:        + _leaf_coeff * _module2_(batch_id_1, n_id));
+346:
+347:    if (n_id == 0)
+348:    {
+349:        _module3_(
+350:            batch_id_0, batch_id_1,
+351:            _module4_(batch_id_0, batch_id_1)
+352:            + _leaf_coeff * _module5_(batch_id_1));
+353:        _module6_(
+354:            batch_id_0, batch_id_1,
+355:            _module7_(batch_id_0, batch_id_1)
+356:            + _leaf_coeff * _leaf_coeff * _module8_(batch_id_1));
+357:    }
+358:}
+359:<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_noiseless_trivial[cuda:0:0]</td>
+          <td class="col-duration">0.02</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f983de438&gt;<br/><br/>    def test_lwe_noiseless_trivial(thread):<br/>    <br/>        params = NuFHEParameters()<br/>        lwe_size = params.in_out_params.size<br/>    <br/>        shape = (10, 20)<br/>    <br/>        res_a = numpy.empty(shape + (lwe_size,), Torus32)<br/>        res_b = numpy.empty(shape, Torus32)<br/>        res_cv = numpy.empty(shape, ErrorFloat)<br/>        mus = get_test_array(shape, Torus32)<br/>    <br/>        shape_info = LweSampleArrayShapeInfo(res_a, res_b, res_cv)<br/>    <br/>&gt;       test = LweNoiselessTrivial(shape_info, shape).compile(thread)<br/><br/>test/test_lwe.py:340: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:207: in compile<br/>    self._tr_tree, translator, thread, fast_math, compiler_options, keep).finalize()<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:192: in _get_plan<br/>    return self._build_plan(plan_factory, thread.device_params, *args)<br/>nufhe/lwe_gpu.py:335: in _build_plan<br/>    global_size=result_a.shape)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/core/computation.py:473: in kernel_call<br/>    keep=self._keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:566: in compile_static<br/>    constant_arrays=constant_arrays, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:786: in __init__<br/>    constant_arrays=constant_arrays, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:655: in __init__<br/>    self.source, fast_math=fast_math, compiler_options=compiler_options, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/api.py:504: in _create_program<br/>    src, fast_math=fast_math, compiler_options=compiler_options, keep=keep)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:227: in _compile<br/>    return SourceModule(src, no_extern_c=True, options=options, keep=keep)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;pycuda.compiler.SourceModule object at 0x7f9847bf28&gt;<br/>source = &#x27;\n\n\n    #define CUDA\n    // taken from pycuda._cluda\n    #define LOCAL_BARRIER __syncthreads()\n\n    #define WIT...batch_id_0, batch_id_1, _module2_(batch_id_0, batch_id_1));\n        _module3_(batch_id_0, batch_id_1, 0);\n    }\n}\n&#x27;<br/>nvcc = &#x27;nvcc&#x27;, options = [], keep = False, no_extern_c = True, arch = None, code = None<br/>cache_dir = None, include_dirs = []<br/><br/>    def __init__(self, source, nvcc=&quot;nvcc&quot;, options=None, keep=False,<br/>            no_extern_c=False, arch=None, code=None, cache_dir=None,<br/>            include_dirs=[]):<br/>        self._check_arch(arch)<br/>    <br/>        cubin = compile(source, nvcc, options, keep, no_extern_c,<br/>                arch, code, cache_dir, include_dirs)<br/>    <br/>        from pycuda.driver import module_from_buffer<br/>&gt;       self.module = module_from_buffer(cubin)<br/><span class="error">E       pycuda._driver.LogicError: cuModuleLoadDataEx failed: invalid device context -</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/compiler.py:294: LogicError<br/> -------------------------------Captured log call-------------------------------- <br/>[31m[1mERROR   [0m root:api.py:507 Failed to compile:
+1:
+2:
+3:
+4:    #define CUDA
+5:    // taken from pycuda._cluda
+6:    #define LOCAL_BARRIER __syncthreads()
+7:
+8:    #define WITHIN_KERNEL __device__
+9:    #define KERNEL extern &quot;C&quot; __global__
+10:    #define GLOBAL_MEM /* empty */
+11:    #define GLOBAL_MEM_ARG /* empty */
+12:    #define LOCAL_MEM __shared__
+13:    #define LOCAL_MEM_DYNAMIC extern __shared__
+14:    #define LOCAL_MEM_ARG /* empty */
+15:    #define CONSTANT_MEM __constant__
+16:    #define CONSTANT_MEM_ARG /* empty */
+17:    #define INLINE __forceinline__
+18:    #define SIZE_T int
+19:    #define VSIZE_T int
+20:
+21:    // used to align fields in structures
+22:    #define ALIGN(bytes) __align__(bytes)
+23:
+24:    
+25:
+26:    WITHIN_KERNEL SIZE_T get_local_id(unsigned int dim)
+27:    {
+28:        if(dim == 0) return threadIdx.x;
+29:        if(dim == 1) return threadIdx.y;
+30:        if(dim == 2) return threadIdx.z;
+31:        return 0;
+32:    }
+33:
+34:    WITHIN_KERNEL SIZE_T get_group_id(unsigned int dim)
+35:    {
+36:        if(dim == 0) return blockIdx.x;
+37:        if(dim == 1) return blockIdx.y;
+38:        if(dim == 2) return blockIdx.z;
+39:        return 0;
+40:    }
+41:
+42:    WITHIN_KERNEL SIZE_T get_local_size(unsigned int dim)
+43:    {
+44:        if(dim == 0) return blockDim.x;
+45:        if(dim == 1) return blockDim.y;
+46:        if(dim == 2) return blockDim.z;
+47:        return 1;
+48:    }
+49:
+50:    WITHIN_KERNEL SIZE_T get_num_groups(unsigned int dim)
+51:    {
+52:        if(dim == 0) return gridDim.x;
+53:        if(dim == 1) return gridDim.y;
+54:        if(dim == 2) return gridDim.z;
+55:        return 1;
+56:    }
+57:
+58:    WITHIN_KERNEL SIZE_T get_global_size(unsigned int dim)
+59:    {
+60:        return get_num_groups(dim) * get_local_size(dim);
+61:    }
+62:
+63:    WITHIN_KERNEL SIZE_T get_global_id(unsigned int dim)
+64:    {
+65:        return get_local_id(dim) + get_group_id(dim) * get_local_size(dim);
+66:    }
+67:
+68:
+69:
+70:
+71:    #define COMPLEX_CTR(T) make_##T
+72:
+73:    WITHIN_KERNEL float2 operator+(float2 a, float2 b)
+74:    {
+75:        return COMPLEX_CTR(float2)(a.x + b.x, a.y + b.y);
+76:    }
+77:    WITHIN_KERNEL float2 operator-(float2 a, float2 b)
+78:    {
+79:        return COMPLEX_CTR(float2)(a.x - b.x, a.y - b.y);
+80:    }
+81:    WITHIN_KERNEL float2 operator+(float2 a) { return a; }
+82:    WITHIN_KERNEL float2 operator-(float2 a) { return COMPLEX_CTR(float2)(-a.x, -a.y); }
+83:    WITHIN_KERNEL double2 operator+(double2 a, double2 b)
+84:    {
+85:        return COMPLEX_CTR(double2)(a.x + b.x, a.y + b.y);
+86:    }
+87:    WITHIN_KERNEL double2 operator-(double2 a, double2 b)
+88:    {
+89:        return COMPLEX_CTR(double2)(a.x - b.x, a.y - b.y);
+90:    }
+91:    WITHIN_KERNEL double2 operator+(double2 a) { return a; }
+92:    WITHIN_KERNEL double2 operator-(double2 a) { return COMPLEX_CTR(double2)(-a.x, -a.y); }
+93:
+94:WITHIN_KERNEL VSIZE_T virtual_local_id(unsigned int dim)
+95:{
+96:    if (dim == 2)
+97:    {
+98:
+99:        SIZE_T flat_id =
+100:            get_local_id(0) * 1 +
+101:            0;
+102:
+103:        return (flat_id / 1);
+104:
+105:    }
+106:    if (dim == 1)
+107:    {
+108:
+109:        SIZE_T flat_id =
+110:            get_local_id(1) * 1 +
+111:            0;
+112:
+113:        return (flat_id / 1);
+114:
+115:    }
+116:    if (dim == 0)
+117:    {
+118:
+119:        return 0;
+120:
+121:    }
+122:
+123:    return 0;
+124:}
+125:
+126:WITHIN_KERNEL VSIZE_T virtual_local_size(unsigned int dim)
+127:{
+128:    if (dim == 2)
+129:    {
+130:        return 512;
+131:    }
+132:    if (dim == 1)
+133:    {
+134:        return 2;
+135:    }
+136:    if (dim == 0)
+137:    {
+138:        return 1;
+139:    }
+140:
+141:    return 1;
+142:}
+143:
+144:WITHIN_KERNEL VSIZE_T virtual_group_id(unsigned int dim)
+145:{
+146:    if (dim == 2)
+147:    {
+148:
+149:        return 0;
+150:
+151:    }
+152:    if (dim == 1)
+153:    {
+154:
+155:        SIZE_T flat_id =
+156:            get_group_id(1) * 1 +
+157:            0;
+158:
+159:        return (flat_id / 1);
+160:
+161:    }
+162:    if (dim == 0)
+163:    {
+164:
+165:        SIZE_T flat_id =
+166:            get_group_id(2) * 1 +
+167:            0;
+168:
+169:        return (flat_id / 1);
+170:
+171:    }
+172:
+173:    return 0;
+174:}
+175:
+176:WITHIN_KERNEL VSIZE_T virtual_num_groups(unsigned int dim)
+177:{
+178:    if (dim == 2)
+179:    {
+180:        return 1;
+181:    }
+182:    if (dim == 1)
+183:    {
+184:        return 10;
+185:    }
+186:    if (dim == 0)
+187:    {
+188:        return 10;
+189:    }
+190:
+191:    return 1;
+192:}
+193:
+194:WITHIN_KERNEL VSIZE_T virtual_global_id(unsigned int dim)
+195:{
+196:    return virtual_local_id(dim) + virtual_group_id(dim) * virtual_local_size(dim);
+197:}
+198:
+199:WITHIN_KERNEL VSIZE_T virtual_global_size(unsigned int dim)
+200:{
+201:    if(dim == 2)
+202:    {
+203:        return 500;
+204:    }
+205:    if(dim == 1)
+206:    {
+207:        return 20;
+208:    }
+209:    if(dim == 0)
+210:    {
+211:        return 10;
+212:    }
+213:
+214:    return 1;
+215:}
+216:
+217:WITHIN_KERNEL VSIZE_T virtual_global_flat_id()
+218:{
+219:    return
+220:        virtual_global_id(2) * 1 +
+221:        virtual_global_id(1) * 500 +
+222:        virtual_global_id(0) * 10000 +
+223:        0;
+224:}
+225:
+226:WITHIN_KERNEL VSIZE_T virtual_global_flat_size()
+227:{
+228:    return
+229:        virtual_global_size(2) *
+230:        virtual_global_size(1) *
+231:        virtual_global_size(0) *
+232:        1;
+233:}
+234:
+235:
+236:WITHIN_KERNEL bool virtual_skip_local_threads()
+237:{
+238:
+239:    return false;
+240:}
+241:
+242:WITHIN_KERNEL bool virtual_skip_groups()
+243:{
+244:
+245:    return false;
+246:}
+247:
+248:WITHIN_KERNEL bool virtual_skip_global_threads()
+249:{
+250:    if (virtual_global_id(2) &gt;= 500)
+251:        return true;
+252:
+253:    return false;
+254:}
+255:
+256:
+257:
+258:#ifndef CUDA
+259:#define MARK_VIRTUAL_FUNCTIONS_AS_USED (void)(virtual_num_groups(0)); (void)(virtual_global_flat_id()); (void)(virtual_global_flat_size())
+260:#else
+261:#define MARK_VIRTUAL_FUNCTIONS_AS_USED
+262:#endif
+263:
+264:#define VIRTUAL_SKIP_THREADS MARK_VIRTUAL_FUNCTIONS_AS_USED; if(virtual_skip_local_threads() || virtual_skip_groups() || virtual_skip_global_threads()) return
+265:
+266:
+267:    // leaf output macro for &quot;result_a&quot;
+268:    #define _module0_(_idx0, _idx1, _idx2, _val) _leaf_result_a[(_idx0) * (10000) + (_idx1) * (500) + (_idx2) * (1) + (0)] = (_val)
+269:    
+270:
+271:
+272:
+273:
+274:    // leaf output macro for &quot;result_b&quot;
+275:    #define _module1_(_idx0, _idx1, _val) _leaf_result_b[(_idx0) * (20) + (_idx1) * (1) + (0)] = (_val)
+276:    
+277:
+278:
+279:
+280:
+281:    // leaf input macro for &quot;mus&quot;
+282:    #define _module2_(_idx0, _idx1) (_leaf_mus[(_idx0) * (20) + (_idx1) * (1) + (0)])
+283:    
+284:
+285:
+286:
+287:
+288:    // leaf output macro for &quot;result_cv&quot;
+289:    #define _module3_(_idx0, _idx1, _val) _leaf_result_cv[(_idx0) * (20) + (_idx1) * (1) + (0)] = (_val)
+290:    
+291:
+292:
+293:
+294:
+295:
+296:
+297:
+298:KERNEL void lwe_noiseless_trivial(GLOBAL_MEM int *_leaf_result_a, GLOBAL_MEM int *_leaf_result_b, GLOBAL_MEM float *_leaf_result_cv, GLOBAL_MEM int *_leaf_mus)
+299:
+300:{
+301:    VIRTUAL_SKIP_THREADS;
+302:
+303:    int batch_id_0 = virtual_global_id(0);
+304:    int batch_id_1 = virtual_global_id(1);
+305:    int n_id = virtual_global_id(2);
+306:
+307:    _module0_(batch_id_0, batch_id_1, n_id, 0);
+308:    if (n_id == 0)
+309:    {
+310:        _module1_(batch_id_0, batch_id_1, _module2_(batch_id_0, batch_id_1));
+311:        _module3_(batch_id_0, batch_id_1, 0);
+312:    }
+313:}
+314:<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_copy[cuda:0:0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f982f4978&gt;<br/><br/>    def test_lwe_copy(thread):<br/>    <br/>        params = NuFHEParameters()<br/>        lwe_params = params.in_out_params<br/>    <br/>        shape = (3, 4, 5)<br/>    <br/>&gt;       ciphertext = mock_ciphertext(thread, lwe_params, shape)<br/><br/>test/test_lwe.py:404: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>test/test_lwe.py:389: in mock_ciphertext<br/>    ciphertext = LweSampleArray.empty(thread, params, shape)<br/>nufhe/lwe.py:154: in empty<br/>    a = thr.array(shape + (params.size,), Torus32)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:193: in array<br/>    offset=offset, base_data=base_data, nbytes=nbytes)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:90: in __init__<br/>    self, shape, dtype, strides=strides, allocator=allocator, gpudata=gpudata)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;[AttributeError(&quot;&#x27;Array&#x27; object has no attribute &#x27;gpudata&#x27;&quot;,) raised in repr()] Array object at 0x7f98423ac8&gt;<br/>shape = (3, 4, 5, 500), dtype = dtype(&#x27;int32&#x27;)<br/>allocator = &lt;Boost.Python.function object at 0x2ee4daf0&gt;, base = None, gpudata = None<br/>strides = (40000, 10000, 2000, 4), order = &#x27;C&#x27;<br/><br/>    def __init__(self, shape, dtype, allocator=drv.mem_alloc,<br/>            base=None, gpudata=None, strides=None, order=&quot;C&quot;):<br/>        dtype = np.dtype(dtype)<br/>    <br/>        try:<br/>            s = 1<br/>            for dim in shape:<br/>                s *= dim<br/>        except TypeError:<br/>            # handle dim-0 ndarrays:<br/>            if isinstance(shape, np.ndarray):<br/>                shape = np.asscalar(shape)<br/>            assert isinstance(shape, numbers.Integral)<br/>            s = shape<br/>            shape = (shape,)<br/>        else:<br/>            # handle shapes that are ndarrays<br/>            shape = tuple(shape)<br/>    <br/>        if isinstance(s, np.integer):<br/>            # bombs if s is a Python integer<br/>            s = np.asscalar(s)<br/>    <br/>        if strides is None:<br/>            if order == &quot;F&quot;:<br/>                strides = _f_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            elif order == &quot;C&quot;:<br/>                strides = _c_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            else:<br/>                raise ValueError(&quot;invalid order: %s&quot; % order)<br/>        else:<br/>            # FIXME: We should possibly perform some plausibility<br/>            # checking on &#x27;strides&#x27; here.<br/>    <br/>            strides = tuple(strides)<br/>    <br/>        self.shape = tuple(shape)<br/>        self.dtype = dtype<br/>        self.strides = strides<br/>        self.mem_size = self.size = s<br/>        self.nbytes = self.dtype.itemsize * self.size<br/>        self.itemsize = self.dtype.itemsize<br/>    <br/>        self.allocator = allocator<br/>        if gpudata is None:<br/>            if self.size:<br/>&gt;               self.gpudata = self.allocator(self.size * self.dtype.itemsize)<br/><span class="error">E               pycuda._driver.LogicError: cuMemAlloc failed: invalid device context</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/gpuarray.py:210: LogicError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_concatenate[cuda:0:0-False-0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f98613a90&gt;, axis = 0, out_none = False<br/><br/>    @pytest.mark.parametrize(&#x27;axis&#x27;, [0, 1])<br/>    @pytest.mark.parametrize(&#x27;out_none&#x27;, [False, True])<br/>    def test_lwe_concatenate(thread, axis, out_none):<br/>    <br/>        params = NuFHEParameters()<br/>        lwe_params = params.in_out_params<br/>    <br/>        if axis == 0:<br/>            shapes = [(3, 4), (1, 4), (4, 4)]<br/>        elif axis == 1:<br/>            shapes = [(4, 3), (4, 1), (4, 4)]<br/>    <br/>&gt;       ciphertexts = [mock_ciphertext(thread, lwe_params, shape) for shape in shapes]<br/><br/>test/test_lwe.py:454: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>test/test_lwe.py:454: in &lt;listcomp&gt;<br/>    ciphertexts = [mock_ciphertext(thread, lwe_params, shape) for shape in shapes]<br/>test/test_lwe.py:389: in mock_ciphertext<br/>    ciphertext = LweSampleArray.empty(thread, params, shape)<br/>nufhe/lwe.py:154: in empty<br/>    a = thr.array(shape + (params.size,), Torus32)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:193: in array<br/>    offset=offset, base_data=base_data, nbytes=nbytes)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:90: in __init__<br/>    self, shape, dtype, strides=strides, allocator=allocator, gpudata=gpudata)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;[AttributeError(&quot;&#x27;Array&#x27; object has no attribute &#x27;gpudata&#x27;&quot;,) raised in repr()] Array object at 0x7f985c64e0&gt;<br/>shape = (3, 4, 500), dtype = dtype(&#x27;int32&#x27;)<br/>allocator = &lt;Boost.Python.function object at 0x2ee4daf0&gt;, base = None, gpudata = None<br/>strides = (8000, 2000, 4), order = &#x27;C&#x27;<br/><br/>    def __init__(self, shape, dtype, allocator=drv.mem_alloc,<br/>            base=None, gpudata=None, strides=None, order=&quot;C&quot;):<br/>        dtype = np.dtype(dtype)<br/>    <br/>        try:<br/>            s = 1<br/>            for dim in shape:<br/>                s *= dim<br/>        except TypeError:<br/>            # handle dim-0 ndarrays:<br/>            if isinstance(shape, np.ndarray):<br/>                shape = np.asscalar(shape)<br/>            assert isinstance(shape, numbers.Integral)<br/>            s = shape<br/>            shape = (shape,)<br/>        else:<br/>            # handle shapes that are ndarrays<br/>            shape = tuple(shape)<br/>    <br/>        if isinstance(s, np.integer):<br/>            # bombs if s is a Python integer<br/>            s = np.asscalar(s)<br/>    <br/>        if strides is None:<br/>            if order == &quot;F&quot;:<br/>                strides = _f_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            elif order == &quot;C&quot;:<br/>                strides = _c_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            else:<br/>                raise ValueError(&quot;invalid order: %s&quot; % order)<br/>        else:<br/>            # FIXME: We should possibly perform some plausibility<br/>            # checking on &#x27;strides&#x27; here.<br/>    <br/>            strides = tuple(strides)<br/>    <br/>        self.shape = tuple(shape)<br/>        self.dtype = dtype<br/>        self.strides = strides<br/>        self.mem_size = self.size = s<br/>        self.nbytes = self.dtype.itemsize * self.size<br/>        self.itemsize = self.dtype.itemsize<br/>    <br/>        self.allocator = allocator<br/>        if gpudata is None:<br/>            if self.size:<br/>&gt;               self.gpudata = self.allocator(self.size * self.dtype.itemsize)<br/><span class="error">E               pycuda._driver.LogicError: cuMemAlloc failed: invalid device context</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/gpuarray.py:210: LogicError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_concatenate[cuda:0:0-False-1]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f98613a90&gt;, axis = 1, out_none = False<br/><br/>    @pytest.mark.parametrize(&#x27;axis&#x27;, [0, 1])<br/>    @pytest.mark.parametrize(&#x27;out_none&#x27;, [False, True])<br/>    def test_lwe_concatenate(thread, axis, out_none):<br/>    <br/>        params = NuFHEParameters()<br/>        lwe_params = params.in_out_params<br/>    <br/>        if axis == 0:<br/>            shapes = [(3, 4), (1, 4), (4, 4)]<br/>        elif axis == 1:<br/>            shapes = [(4, 3), (4, 1), (4, 4)]<br/>    <br/>&gt;       ciphertexts = [mock_ciphertext(thread, lwe_params, shape) for shape in shapes]<br/><br/>test/test_lwe.py:454: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>test/test_lwe.py:454: in &lt;listcomp&gt;<br/>    ciphertexts = [mock_ciphertext(thread, lwe_params, shape) for shape in shapes]<br/>test/test_lwe.py:389: in mock_ciphertext<br/>    ciphertext = LweSampleArray.empty(thread, params, shape)<br/>nufhe/lwe.py:154: in empty<br/>    a = thr.array(shape + (params.size,), Torus32)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:193: in array<br/>    offset=offset, base_data=base_data, nbytes=nbytes)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:90: in __init__<br/>    self, shape, dtype, strides=strides, allocator=allocator, gpudata=gpudata)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;[AttributeError(&quot;&#x27;Array&#x27; object has no attribute &#x27;gpudata&#x27;&quot;,) raised in repr()] Array object at 0x7f985777f0&gt;<br/>shape = (4, 3, 500), dtype = dtype(&#x27;int32&#x27;)<br/>allocator = &lt;Boost.Python.function object at 0x2ee4daf0&gt;, base = None, gpudata = None<br/>strides = (6000, 2000, 4), order = &#x27;C&#x27;<br/><br/>    def __init__(self, shape, dtype, allocator=drv.mem_alloc,<br/>            base=None, gpudata=None, strides=None, order=&quot;C&quot;):<br/>        dtype = np.dtype(dtype)<br/>    <br/>        try:<br/>            s = 1<br/>            for dim in shape:<br/>                s *= dim<br/>        except TypeError:<br/>            # handle dim-0 ndarrays:<br/>            if isinstance(shape, np.ndarray):<br/>                shape = np.asscalar(shape)<br/>            assert isinstance(shape, numbers.Integral)<br/>            s = shape<br/>            shape = (shape,)<br/>        else:<br/>            # handle shapes that are ndarrays<br/>            shape = tuple(shape)<br/>    <br/>        if isinstance(s, np.integer):<br/>            # bombs if s is a Python integer<br/>            s = np.asscalar(s)<br/>    <br/>        if strides is None:<br/>            if order == &quot;F&quot;:<br/>                strides = _f_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            elif order == &quot;C&quot;:<br/>                strides = _c_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            else:<br/>                raise ValueError(&quot;invalid order: %s&quot; % order)<br/>        else:<br/>            # FIXME: We should possibly perform some plausibility<br/>            # checking on &#x27;strides&#x27; here.<br/>    <br/>            strides = tuple(strides)<br/>    <br/>        self.shape = tuple(shape)<br/>        self.dtype = dtype<br/>        self.strides = strides<br/>        self.mem_size = self.size = s<br/>        self.nbytes = self.dtype.itemsize * self.size<br/>        self.itemsize = self.dtype.itemsize<br/>    <br/>        self.allocator = allocator<br/>        if gpudata is None:<br/>            if self.size:<br/>&gt;               self.gpudata = self.allocator(self.size * self.dtype.itemsize)<br/><span class="error">E               pycuda._driver.LogicError: cuMemAlloc failed: invalid device context</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/gpuarray.py:210: LogicError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_concatenate[cuda:0:0-True-0]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f98613a90&gt;, axis = 0, out_none = True<br/><br/>    @pytest.mark.parametrize(&#x27;axis&#x27;, [0, 1])<br/>    @pytest.mark.parametrize(&#x27;out_none&#x27;, [False, True])<br/>    def test_lwe_concatenate(thread, axis, out_none):<br/>    <br/>        params = NuFHEParameters()<br/>        lwe_params = params.in_out_params<br/>    <br/>        if axis == 0:<br/>            shapes = [(3, 4), (1, 4), (4, 4)]<br/>        elif axis == 1:<br/>            shapes = [(4, 3), (4, 1), (4, 4)]<br/>    <br/>&gt;       ciphertexts = [mock_ciphertext(thread, lwe_params, shape) for shape in shapes]<br/><br/>test/test_lwe.py:454: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>test/test_lwe.py:454: in &lt;listcomp&gt;<br/>    ciphertexts = [mock_ciphertext(thread, lwe_params, shape) for shape in shapes]<br/>test/test_lwe.py:389: in mock_ciphertext<br/>    ciphertext = LweSampleArray.empty(thread, params, shape)<br/>nufhe/lwe.py:154: in empty<br/>    a = thr.array(shape + (params.size,), Torus32)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:193: in array<br/>    offset=offset, base_data=base_data, nbytes=nbytes)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:90: in __init__<br/>    self, shape, dtype, strides=strides, allocator=allocator, gpudata=gpudata)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;[AttributeError(&quot;&#x27;Array&#x27; object has no attribute &#x27;gpudata&#x27;&quot;,) raised in repr()] Array object at 0x7f9841bb38&gt;<br/>shape = (3, 4, 500), dtype = dtype(&#x27;int32&#x27;)<br/>allocator = &lt;Boost.Python.function object at 0x2ee4daf0&gt;, base = None, gpudata = None<br/>strides = (8000, 2000, 4), order = &#x27;C&#x27;<br/><br/>    def __init__(self, shape, dtype, allocator=drv.mem_alloc,<br/>            base=None, gpudata=None, strides=None, order=&quot;C&quot;):<br/>        dtype = np.dtype(dtype)<br/>    <br/>        try:<br/>            s = 1<br/>            for dim in shape:<br/>                s *= dim<br/>        except TypeError:<br/>            # handle dim-0 ndarrays:<br/>            if isinstance(shape, np.ndarray):<br/>                shape = np.asscalar(shape)<br/>            assert isinstance(shape, numbers.Integral)<br/>            s = shape<br/>            shape = (shape,)<br/>        else:<br/>            # handle shapes that are ndarrays<br/>            shape = tuple(shape)<br/>    <br/>        if isinstance(s, np.integer):<br/>            # bombs if s is a Python integer<br/>            s = np.asscalar(s)<br/>    <br/>        if strides is None:<br/>            if order == &quot;F&quot;:<br/>                strides = _f_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            elif order == &quot;C&quot;:<br/>                strides = _c_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            else:<br/>                raise ValueError(&quot;invalid order: %s&quot; % order)<br/>        else:<br/>            # FIXME: We should possibly perform some plausibility<br/>            # checking on &#x27;strides&#x27; here.<br/>    <br/>            strides = tuple(strides)<br/>    <br/>        self.shape = tuple(shape)<br/>        self.dtype = dtype<br/>        self.strides = strides<br/>        self.mem_size = self.size = s<br/>        self.nbytes = self.dtype.itemsize * self.size<br/>        self.itemsize = self.dtype.itemsize<br/>    <br/>        self.allocator = allocator<br/>        if gpudata is None:<br/>            if self.size:<br/>&gt;               self.gpudata = self.allocator(self.size * self.dtype.itemsize)<br/><span class="error">E               pycuda._driver.LogicError: cuMemAlloc failed: invalid device context</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/gpuarray.py:210: LogicError<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_concatenate[cuda:0:0-True-1]</td>
+          <td class="col-duration">0.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">thread = &lt;reikna.cluda.cuda.Thread object at 0x7f98613a90&gt;, axis = 1, out_none = True<br/><br/>    @pytest.mark.parametrize(&#x27;axis&#x27;, [0, 1])<br/>    @pytest.mark.parametrize(&#x27;out_none&#x27;, [False, True])<br/>    def test_lwe_concatenate(thread, axis, out_none):<br/>    <br/>        params = NuFHEParameters()<br/>        lwe_params = params.in_out_params<br/>    <br/>        if axis == 0:<br/>            shapes = [(3, 4), (1, 4), (4, 4)]<br/>        elif axis == 1:<br/>            shapes = [(4, 3), (4, 1), (4, 4)]<br/>    <br/>&gt;       ciphertexts = [mock_ciphertext(thread, lwe_params, shape) for shape in shapes]<br/><br/>test/test_lwe.py:454: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>test/test_lwe.py:454: in &lt;listcomp&gt;<br/>    ciphertexts = [mock_ciphertext(thread, lwe_params, shape) for shape in shapes]<br/>test/test_lwe.py:389: in mock_ciphertext<br/>    ciphertext = LweSampleArray.empty(thread, params, shape)<br/>nufhe/lwe.py:154: in empty<br/>    a = thr.array(shape + (params.size,), Torus32)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:193: in array<br/>    offset=offset, base_data=base_data, nbytes=nbytes)<br/>../../../envs/env_example/lib/python3.6/site-packages/reikna-0.7.5-py3.6.egg/reikna/cluda/cuda.py:90: in __init__<br/>    self, shape, dtype, strides=strides, allocator=allocator, gpudata=gpudata)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;[AttributeError(&quot;&#x27;Array&#x27; object has no attribute &#x27;gpudata&#x27;&quot;,) raised in repr()] Array object at 0x7f98613cf8&gt;<br/>shape = (4, 3, 500), dtype = dtype(&#x27;int32&#x27;)<br/>allocator = &lt;Boost.Python.function object at 0x2ee4daf0&gt;, base = None, gpudata = None<br/>strides = (6000, 2000, 4), order = &#x27;C&#x27;<br/><br/>    def __init__(self, shape, dtype, allocator=drv.mem_alloc,<br/>            base=None, gpudata=None, strides=None, order=&quot;C&quot;):<br/>        dtype = np.dtype(dtype)<br/>    <br/>        try:<br/>            s = 1<br/>            for dim in shape:<br/>                s *= dim<br/>        except TypeError:<br/>            # handle dim-0 ndarrays:<br/>            if isinstance(shape, np.ndarray):<br/>                shape = np.asscalar(shape)<br/>            assert isinstance(shape, numbers.Integral)<br/>            s = shape<br/>            shape = (shape,)<br/>        else:<br/>            # handle shapes that are ndarrays<br/>            shape = tuple(shape)<br/>    <br/>        if isinstance(s, np.integer):<br/>            # bombs if s is a Python integer<br/>            s = np.asscalar(s)<br/>    <br/>        if strides is None:<br/>            if order == &quot;F&quot;:<br/>                strides = _f_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            elif order == &quot;C&quot;:<br/>                strides = _c_contiguous_strides(<br/>                        dtype.itemsize, shape)<br/>            else:<br/>                raise ValueError(&quot;invalid order: %s&quot; % order)<br/>        else:<br/>            # FIXME: We should possibly perform some plausibility<br/>            # checking on &#x27;strides&#x27; here.<br/>    <br/>            strides = tuple(strides)<br/>    <br/>        self.shape = tuple(shape)<br/>        self.dtype = dtype<br/>        self.strides = strides<br/>        self.mem_size = self.size = s<br/>        self.nbytes = self.dtype.itemsize * self.size<br/>        self.itemsize = self.dtype.itemsize<br/>    <br/>        self.allocator = allocator<br/>        if gpudata is None:<br/>            if self.size:<br/>&gt;               self.gpudata = self.allocator(self.size * self.dtype.itemsize)<br/><span class="error">E               pycuda._driver.LogicError: cuMemAlloc failed: invalid device context</span><br/><br/>../../../envs/env_example/lib/python3.6/site-packages/pycuda-2020.1-py3.6-linux-aarch64.egg/pycuda/gpuarray.py:210: LogicError<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_keyswitch[cuda:0:0]</td>
+          <td class="col-duration">1.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_encrypt[cuda:0:0]</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_linear[cuda:0:0-replace_result-p&lt;0]</td>
+          <td class="col-duration">0.05</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_linear[cuda:0:0-replace_result-p&gt;0]</td>
+          <td class="col-duration">0.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_linear[cuda:0:0-update_result-p&lt;0]</td>
+          <td class="col-duration">0.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_linear[cuda:0:0-update_result-p&gt;0]</td>
+          <td class="col-duration">0.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_noiseless_trivial_constant[cuda:0:0]</td>
+          <td class="col-duration">0.04</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_noiseless_trivial_broadcast[cuda:0:0-0]</td>
+          <td class="col-duration">0.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_noiseless_trivial_broadcast[cuda:0:0-1]</td>
+          <td class="col-duration">0.03</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0-0-7]</td>
+          <td class="col-duration">0.25</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0-0--9]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0-0-0]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0-1-7]</td>
+          <td class="col-duration">0.25</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0-1--9]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0-1-0]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0--1-7]</td>
+          <td class="col-duration">0.24</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0--1--9]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_roll[cuda:0:0--1-0]</td>
+          <td class="col-duration">0.01</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_assign[cuda:0:0-[contig]=[contig]]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_assign[cuda:0:0-[discontig]=[discontig]]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">test/test_lwe.py::test_lwe_assign[cuda:0:0-[scalar]=[scalar]]</td>
+          <td class="col-duration">0.14</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="empty log">No log output captured.</div></td></tr></tbody></table></body></html>
