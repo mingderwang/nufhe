@@ -1,5 +1,9 @@
 # Test and Benchmark for nuFHE running on a nVidia Jetson Nano
 
+## Project:
+
+**My JETSON Nano**
+
 ![](https://paper-attachments.dropbox.com/s_A6A3AFC2FC158B5D75F74E698A0187FD27E9B4DACF9918BB3AC1D136091B9307_1595826441012_IMG_8338.jpg)
 
 
@@ -9,8 +13,8 @@ Submit this project to [NuCypher + GitCoin Unitize Hackathon](https://gitcoin.co
 ![](https://paper-attachments.dropbox.com/s_A6A3AFC2FC158B5D75F74E698A0187FD27E9B4DACF9918BB3AC1D136091B9307_1595822474064_Screen+Shot+2020-07-27+at+12.00.56+PM.png)
 
 
-
 ----------
+## Team:
 
 **Our Goal is:**
 
@@ -27,15 +31,16 @@ Submit this project to [NuCypher + GitCoin Unitize Hackathon](https://gitcoin.co
 - (all html files are under benchmark/ directory in the source repo)
 https://github.com/mingderwang/nufhe/tree/nvidia_jetson_nano_benchmarks
 
+----------
 
-**On-line Test Report:**
+## **On-line Test Report:**
 https://nufhe-test-and-benchmark-on-nvidia-jetson-nano.ming-taiwan.vercel.app
 
 
 ![](https://paper-attachments.dropbox.com/s_A6A3AFC2FC158B5D75F74E698A0187FD27E9B4DACF9918BB3AC1D136091B9307_1595827450594_Screen+Shot+2020-07-27+at+1.23.39+PM.png)
 
-
-**Live Asciinema Demo:**
+----------
+## **Live Asciinema Demo:**
 
 https://asciinema.org/a/eSL3URvHQILCw2VaTpOyH0962
 
@@ -68,7 +73,7 @@ https://asciinema.org/a/eSL3URvHQILCw2VaTpOyH0962
 
 ----------
 
-**Benchmarks of running test.py**
+## **Benchmarks of running test.py**
 cat test.py
 
     import random
